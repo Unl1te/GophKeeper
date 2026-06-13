@@ -1,0 +1,4 @@
+sqlalchemy>=2.0
+asyncpg
+fastapi
+uvicorn
