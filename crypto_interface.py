@@ -4,6 +4,7 @@ Week1: fake functions with correct type returns
 Week2: realise Argon2id hashing and ChaCha20-Poly1305 + Ed25519 crypto
 """
 
+
 def hash_password(password: str) -> str:
     return "hashed_" + password
 
@@ -18,7 +19,7 @@ def encrypt_data(data: bytes) -> bytes:
 
 def decrypt_data(token: bytes) -> bytes:
     if token.startswith(b"encrypted:"):
-        return token[len(b"encrypted:"):]
+        return token[len(b"encrypted:") :]
     return token
 
 
