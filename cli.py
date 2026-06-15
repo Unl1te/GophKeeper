@@ -1,4 +1,5 @@
 import sys
+
 import requests
 
 SERVER_URL = "http://localhost:8000"
@@ -37,7 +38,8 @@ def history():
 
 
 def help():
-    print("""
+    print(
+        """
 GophKeeper CLI - available commands:
 
   health    check if the server is running
@@ -49,7 +51,8 @@ GophKeeper CLI - available commands:
   help      show this help message
 
 Usage: python cli.py <command>
-""")
+"""
+    )
 
 
 COMMANDS = {
@@ -71,7 +74,9 @@ def main():
     command = sys.argv[1].lower()
 
     if command not in COMMANDS:
-        print(f"Unknown command: '{command}'. Run 'python cli.py help' to see available commands")
+        print(
+            f"Unknown command: '{command}'. Run 'python cli.py help' to see available commands"
+        )
         sys.exit(1)
 
     COMMANDS[command]()
