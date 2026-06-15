@@ -35,7 +35,7 @@ jobs:
     - name: Run Tests
       run: |
         if [ -d "tests" ]; then
-          pytest tests/
+          PYTHONPATH=. pytest tests/
         else
           echo "No tests found. Skipping."
         fi
