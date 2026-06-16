@@ -50,10 +50,7 @@ signatures.
 | **Backend (API)**  | FastAPI application. Routing, validation (Pydantic), business logic for registration/login and working with secrets. |
 | **DB layer & models** | Async SQLAlchemy engine, sessions, the `User` and `Item` models. |
 | **Cryptography**   | `crypto_interface.py`. Operations are split by role: the CLI encrypts/decrypts data, the backend verifies passwords and signatures. See [section 4](#4-cryptography-ivan). |
-| **CI / quality / tests** | pre-commit (black, isort, flake8), pytest, GitHub CI. Unified code style and automated checks. |
-| **Deployment / Docker** | `Dockerfile`, `docker-compose.yml` (backend + PostgreSQL), deployment on the VM (N-ov build). |
 | **PostgreSQL**     | Persistent storage: the `users` and `items` tables. |
-| **Documentation**  | README, this architecture, diagrams, problem statement, demo notes. |
 
 ### Data model
 
