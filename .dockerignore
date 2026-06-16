@@ -1,0 +1,33 @@
+# Version control / CI
+.git
+.gitignore
+.github
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local env & secrets (provided at runtime, never baked into the image)
+.env
+
+# Dev tooling / tests (not needed in the runtime image)
+tests/
+.pre-commit-config.yaml
+pytest.ini
+setup.cfg
+
+# Docker / docs
+Dockerfile
+docker-compose.yml
+.dockerignore
+*.md
