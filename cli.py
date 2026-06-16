@@ -2,7 +2,7 @@ import sys
 
 import requests
 
-SERVER_URL = "http://localhost:8000"
+SERVER_URL = "http://localhost"
 
 
 def health():
