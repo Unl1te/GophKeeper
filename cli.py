@@ -37,6 +37,10 @@ def history():
     print("Not implemented")
 
 
+def version():
+    print("Not implemented")
+
+
 def help():
     print(
         """
@@ -48,6 +52,7 @@ GophKeeper CLI - available commands:
   upload    upload a secret or file
   download  download a secret or file
   history   view history of changes
+  version   show version and build date
   help      show this help message
 
 Usage: python cli.py <command>
@@ -62,6 +67,7 @@ COMMANDS = {
     "upload": upload,
     "download": download,
     "history": history,
+    "version": version,
     "help": help,
 }
 
