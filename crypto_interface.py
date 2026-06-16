@@ -24,6 +24,8 @@ def decrypt_data(token: bytes) -> bytes:
 
 
 def sign_data(data: bytes, private_key: bytes = None) -> bytes:
+    # stub for future usage
+    _ = private_key
     return b"signature:" + data
 
 
