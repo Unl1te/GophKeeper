@@ -78,7 +78,8 @@ python cli.py <command>
 | `login`    | Log in to your account                       | 🚧 in progress     |
 | `upload`   | Upload a secret or file                      | 🚧 in progress     |
 | `download` | Download a secret or file                    | 🚧 in progress     |
-| `history`  | View change history (versions)              | 🚧 in progress     |
+| `history`  | View change history (versions)               | 🚧 in progress     |
+| `version`  | Show version and build date                  | 🚧 in progress     |
 | `help`     | Show help                                    | ✅ works           |
 
 ### The `health` command (in detail)
