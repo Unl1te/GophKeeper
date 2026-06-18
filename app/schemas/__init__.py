@@ -1,1 +1,1 @@
-from .user import RegisterRequest, RegisterResponse, LoginRequest, LoginResponse
+from .user import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
