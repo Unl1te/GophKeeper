@@ -57,7 +57,7 @@ def test_register_existing_user(mock_db_session):
     mock_db_session.add.assert_not_called()
 
 
-@patch("app.api.login.create_access_token")
+@patch("app.api.routes.login.create_access_token")
 @patch("crypto_interface.verify_password")
 def test_login_success(mock_verify, mock_create_token, mock_db_session):
     """Test successful login and JWT generation."""
