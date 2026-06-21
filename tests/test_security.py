@@ -13,6 +13,7 @@ from app.core.security import create_access_token, decode_token
 def sample_data():
     return {"sub": "user123", "role": "admin"}
 
+
 def test_create_access_token_returns_string(sample_data):
     token = create_access_token(sample_data)
     assert isinstance(token, str)
@@ -34,6 +35,7 @@ def test_token_with_custom_expiry():
     token = create_access_token(data, expires_delta=custom_delta)
     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     from datetime import datetime, timezone
+
     expected_exp = datetime.now(timezone.utc) + custom_delta
     assert abs((payload["exp"] - expected_exp.timestamp())) < 5
 
@@ -48,7 +50,7 @@ def test_valid_token_decodes_successfully():
 def test_expired_token_raises_error():
     data = {"sub": "expired"}
     token = create_access_token(data, expires_delta=timedelta(seconds=1))
-    time.sleep(2)  
+    time.sleep(2)
     with pytest.raises(JWTError):
         decode_token(token)
 
@@ -58,6 +60,7 @@ def test_future_token_works():
     token = create_access_token(data, expires_delta=timedelta(days=365))
     payload = decode_token(token)
     assert payload["sub"] == "future"
+
 
 def test_tampered_payload_rejected(sample_data):
     token = create_access_token(sample_data)

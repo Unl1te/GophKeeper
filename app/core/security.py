@@ -12,7 +12,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode.update({"exp":expire})
+    to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -21,6 +21,4 @@ def decode_token(token: str) -> dict:
     Verifies and decodes JWT token
     Returns: payload dict
     """
-    return jwt.decode(token, settings.SECRET_KEY,algorithms=[settings.ALGORITHM])
-    
-    
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

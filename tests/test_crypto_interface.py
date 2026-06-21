@@ -36,6 +36,7 @@ def test_sign_verify_returns_bytes_and_bool():
     assert crypto.verify_signature(data, b"bad_signature", b"pubkey") is False
     assert isinstance(crypto.verify_signature(b"", b"", b""), bool)
 
+
 def test_hash_empty_password():
     result = crypto.hash_password("")
     assert isinstance(result, str)
@@ -92,7 +93,7 @@ def test_verify_password_special_chars():
 
 
 def test_encrypt_decrypt_large_data():
-    data = b"x" * (11 * 1024 * 1024) 
+    data = b"x" * (11 * 1024 * 1024)
     token = crypto.encrypt_data(data)
     assert isinstance(token, bytes)
     assert token.startswith(b"encrypted:")
@@ -102,7 +103,7 @@ def test_encrypt_decrypt_large_data():
 
 
 def test_sign_large_data():
-    data = b"y" * (10 * 1024 * 1024)  
+    data = b"y" * (10 * 1024 * 1024)
     signature = crypto.sign_data(data)
     assert isinstance(signature, bytes)
     assert signature.startswith(b"signature:")
@@ -110,7 +111,7 @@ def test_sign_large_data():
 
 
 def test_encrypt_decrypt_binary_data():
-    data = bytes(range(256)) * 100  
+    data = bytes(range(256)) * 100
     token = crypto.encrypt_data(data)
     decrypted = crypto.decrypt_data(token)
     assert decrypted == data
@@ -135,7 +136,7 @@ def test_verify_signature_wrong_key():
     signature = crypto.sign_data(data)
     result = crypto.verify_signature(data, signature, b"wrong_key")
     assert isinstance(result, bool)
-    assert result is True 
+    assert result is True
 
 
 def test_original_tests_still_pass():

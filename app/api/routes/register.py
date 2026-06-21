@@ -10,7 +10,9 @@ import crypto_interface
 router = APIRouter(tags=["Registration"])
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED
+)
 async def register(user_data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """
     Register a new user.
@@ -21,9 +23,7 @@ async def register(user_data: RegisterRequest, db: AsyncSession = Depends(get_db
     Returns 201 Created on success, 409 Conflict if login already exists.
     """
     # Check if user already exists
-    existing_user = await db.execute(
-        select(User).where(User.login == user_data.login)
-    )
+    existing_user = await db.execute(select(User).where(User.login == user_data.login))
     if existing_user.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
