@@ -90,7 +90,7 @@ Found during the demo:
   duplicate login, wrong password) and `tests/test_cli_auth.py` (CLI with mocked
   HTTP). CI runs `pytest` with coverage (`pytest-cov`).
 
-## How Week 3 extends the MVP (vs Week 2)
+## How Week 2 extends the MVP (vs Week 1)
 
 - Week 2 was end-to-end only for `health` (server reachable). All auth and data
   commands were stubs printing "Not implemented".
