@@ -116,8 +116,9 @@ def test_decode_extra_parts_raises_error():
     with pytest.raises(JWTError):
         decode_token("one.two.three.four.five")
 
+
 def test_decode_with_wrong_algorithm():
-    payload = {"sub": "test"}                                 
+    payload = {"sub": "test"}
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS512")
     with pytest.raises(JWTError):
         decode_token(token)
