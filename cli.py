@@ -1,7 +1,25 @@
 import sys
+import os
+import json
 import requests
 
 SERVER_URL = "http://localhost:8000"
+CONFIG_DIR = os.path.expanduser("~/.gophkeeper")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+
+
+def save_token(token: str):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(CONFIG_FILE, "w") as f:
+        json.dump({"token": token}, f)
+
+
+def load_token():
+    if not os.path.exists(CONFIG_FILE):
+        return None
+    with open(CONFIG_FILE, "r") as f:
+        data = json.load(f)
+    return data.get("token")
 
 
 def health():
@@ -17,11 +35,43 @@ def health():
 
 
 def register():
-    print("Not implemented")
+    login = input("login: ")
+    password = input("password: ")
+    try:
+        response = requests.post(
+            f"{SERVER_URL}/register",
+            json={"login": login, "password": password}
+        )
+        if response.status_code == 201:
+            data = response.json()
+            print(data.get("message", "Registered successfully"))
+        elif response.status_code == 409:
+            print(f"Error: user '{login}' already exists")
+        else:
+            print(f"Error: {response.status_code} — {response.json().get('detail', 'something went wrong')}")
+    except requests.exceptions.ConnectionError:
+        print("Error: could not connect to server")
 
 
 def login():
-    print("Not implemented")
+    login_input = input("login: ")
+    password = input("password: ")
+    try:
+        response = requests.post(
+            f"{SERVER_URL}/login",
+            json={"login": login_input, "password": password}
+        )
+        if response.status_code == 200:
+            data = response.json()
+            token = data.get("access_token")
+            save_token(token)
+            print("Logged in successfully")
+        elif response.status_code == 401:
+            print("Error: invalid login or password")
+        else:
+            print(f"Error: {response.status_code} — {response.json().get('detail', 'something went wrong')}")
+    except requests.exceptions.ConnectionError:
+        print("Error: could not connect to server")
 
 
 def upload():
