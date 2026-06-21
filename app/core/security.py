@@ -1,19 +1,24 @@
-"""
-Temporary JWT stub
-Need's to be replaced by real implementation
-"""
-
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
-import jwt
+from jose import jwt, JWTError
 from app.core.config import settings
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    raise NotImplementedError("Will be implemented")
+    """
+    Generates a signed JWT token with expiration
+    """
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def decode_token(token: str) -> dict:
-    raise NotImplementedError("Will be implemented")
-    
-    
+    """
+    Verifies and decodes JWT token
+    Returns: payload dict
+    """
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
