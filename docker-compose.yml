@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gophkeeper-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gophkeeper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gophkeeper}
+      POSTGRES_DB: ${POSTGRES_DB:-gophkeeper}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gophkeeper} -d ${POSTGRES_DB:-gophkeeper}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    container_name: gophkeeper-backend
+    restart: unless-stopped
+    environment:
+      # Async connection string used by the app. Host "db" is the service name below.
+      # Override via a .env file or shell env if needed.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://gophkeeper:gophkeeper@db:5432/gophkeeper}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Container always listens on 8000; host port is configurable (use 80 on the VM).
+      - "${API_PORT:-8000}:8000"
+
+volumes:
+  pgdata:

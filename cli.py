@@ -3,7 +3,7 @@ import os
 import json
 import requests
 
-SERVER_URL = "http://localhost:8000"
+SERVER_URL = "http://localhost"
 CONFIG_DIR = os.path.expanduser("~/.gophkeeper")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
@@ -86,8 +86,13 @@ def history():
     print("Not implemented")
 
 
+def version():
+    print("Not implemented")
+
+
 def help():
-    print("""
+    print(
+        """
 GophKeeper CLI - available commands:
 
   health    check if the server is running
@@ -96,10 +101,12 @@ GophKeeper CLI - available commands:
   upload    upload a secret or file
   download  download a secret or file
   history   view history of changes
+  version   show version and build date
   help      show this help message
 
 Usage: python cli.py <command>
-""")
+"""
+    )
 
 
 COMMANDS = {
@@ -109,6 +116,7 @@ COMMANDS = {
     "upload": upload,
     "download": download,
     "history": history,
+    "version": version,
     "help": help,
 }
 
@@ -121,7 +129,9 @@ def main():
     command = sys.argv[1].lower()
 
     if command not in COMMANDS:
-        print(f"Unknown command: '{command}'. Run 'python cli.py help' to see available commands")
+        print(
+            f"Unknown command: '{command}'. Run 'python cli.py help' to see available commands"
+        )
         sys.exit(1)
 
     COMMANDS[command]()
