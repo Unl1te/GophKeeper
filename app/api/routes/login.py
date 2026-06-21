@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import crypto_interface
 from app.core.database import get_db
 from app.core.security import create_access_token
 from app.models.models import User
 from app.schemas.user import LoginRequest, LoginResponse
-import crypto_interface
 
 router = APIRouter(tags=["Authentication"])
 
@@ -22,9 +22,7 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
     Returns 200 OK with access token, 401 Unauthorized on invalid credentials.
     """
     # Find user
-    result = await db.execute(
-        select(User).where(User.login == credentials.login)
-    )
+    result = await db.execute(select(User).where(User.login == credentials.login))
     user = result.scalar_one_or_none()
 
     if user is None:
