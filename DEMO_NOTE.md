@@ -92,9 +92,9 @@ Found during the demo:
 
 ## How Week 2 extends the MVP (vs Week 1)
 
-- Week 2 was end-to-end only for `health` (server reachable). All auth and data
+- Week 1 was end-to-end only for `health` (server reachable). All auth and data
   commands were stubs printing "Not implemented".
-- Week 3 adds a real authentication path: a user can **register** and **log in**
+- Week 2 adds a real authentication path: a user can **register** and **log in**
   from the CLI and receive a stored JWT — the first real user journey beyond a
   liveness check.
 - The data model now distinguishes secret types (`Item.type`), preparing for the
