@@ -98,10 +98,10 @@ sequenceDiagram
     end
 ```
 
-### Diagram: registration (stub — target scenario)
+### Diagram: registration
 
-At this stage the server returns `501 Not Implemented`. The diagram shows the
-**planned** behavior after implementation.
+Implemented flow (`POST /register`). The account password is hashed on the
+server; the encryption master password is separate and is never sent.
 
 ```mermaid
 sequenceDiagram
@@ -114,15 +114,46 @@ sequenceDiagram
     C->>U: ask for login and account password
     U-->>C: login, password
     C->>S: POST /register {login, password}
-    Note over C: the master password for data encryption<br/>is set separately and is NOT sent to the server
-    Note over S: CURRENT: 501 Not Implemented
-    rect rgb(235, 245, 235)
-        Note over S,DB: PLANNED
-        S->>S: hash the account password (Argon2id)
+    S->>DB: SELECT user WHERE login = ?
+    alt login already exists
+        DB-->>S: user found
+        S-->>C: 409 Conflict
+        C-->>U: "Error: user already exists"
+    else login is free
+        DB-->>S: not found
+        S->>S: hash_password(password)
         S->>DB: INSERT User(login, hashed_password)
-        DB-->>S: ok (or login conflict)
+        DB-->>S: ok
         S-->>C: 201 {"message": "registered"}
-        C-->>U: "Registration successful"
+        C-->>U: "User '<login>' registered successfully"
+    end
+```
+
+### Diagram: login
+
+Implemented flow (`POST /login`). On success the server issues a JWT and the
+client stores it locally.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as CLI
+    participant S as Backend
+    participant DB as PostgreSQL
+
+    U->>C: python cli.py login
+    C->>U: ask for login and password
+    U-->>C: login, password
+    C->>S: POST /login {login, password}
+    S->>DB: SELECT user WHERE login = ?
+    alt user missing or wrong password
+        S-->>C: 401 Unauthorized
+        C-->>U: "Error: invalid login or password"
+    else credentials valid
+        S->>S: verify_password() + create_access_token() (JWT, HS256, 15 min)
+        S-->>C: 200 {"access_token", "token_type": "bearer"}
+        C->>C: save token to ~/.gophkeeper/config.json
+        C-->>U: "Logged in successfully"
     end
 ```
 
