@@ -1,6 +1,7 @@
-import sys
-import os
 import json
+import os
+import sys
+
 import requests
 
 SERVER_URL = "http://localhost"
@@ -39,8 +40,7 @@ def register():
     password = input("password: ")
     try:
         response = requests.post(
-            f"{SERVER_URL}/register",
-            json={"login": login, "password": password}
+            f"{SERVER_URL}/register", json={"login": login, "password": password}
         )
         if response.status_code == 201:
             data = response.json()
@@ -48,7 +48,9 @@ def register():
         elif response.status_code == 409:
             print(f"Error: user '{login}' already exists")
         else:
-            print(f"Error: {response.status_code} — {response.json().get('detail', 'something went wrong')}")
+            print(
+                f"Error: {response.status_code} — {response.json().get('detail', 'something went wrong')}"
+            )
     except requests.exceptions.ConnectionError:
         print("Error: could not connect to server")
 
@@ -58,8 +60,7 @@ def login():
     password = input("password: ")
     try:
         response = requests.post(
-            f"{SERVER_URL}/login",
-            json={"login": login_input, "password": password}
+            f"{SERVER_URL}/login", json={"login": login_input, "password": password}
         )
         if response.status_code == 200:
             data = response.json()
@@ -69,7 +70,9 @@ def login():
         elif response.status_code == 401:
             print("Error: invalid login or password")
         else:
-            print(f"Error: {response.status_code} — {response.json().get('detail', 'something went wrong')}")
+            print(
+                f"Error: {response.status_code} — {response.json().get('detail', 'something went wrong')}"
+            )
     except requests.exceptions.ConnectionError:
         print("Error: could not connect to server")
 

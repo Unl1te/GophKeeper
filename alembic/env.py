@@ -6,7 +6,6 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
-
 from app.models.models import Base
 
 config = context.config
@@ -18,7 +17,10 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    return os.getenv("DATABASE_URL", "postgresql+asyncpg://gophkeeper:gophkeeper@localhost:5432/gophkeeper")
+    return os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://gophkeeper:gophkeeper@localhost:5432/gophkeeper",
+    )
 
 
 def run_migrations_offline() -> None:

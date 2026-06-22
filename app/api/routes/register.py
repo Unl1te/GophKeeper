@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import crypto_interface
 from app.core.database import get_db
 from app.models.models import User
 from app.schemas.user import RegisterRequest, RegisterResponse
-import crypto_interface
 
 router = APIRouter(tags=["Registration"])
 

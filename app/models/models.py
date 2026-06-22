@@ -52,4 +52,3 @@ class Item(Base):
     )
 
     owner: Mapped["User"] = relationship(back_populates="items")
-    
