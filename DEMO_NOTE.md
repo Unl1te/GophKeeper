@@ -64,3 +64,42 @@ Found during the demo:
   and starts the real Argon2id / ChaCha20-Poly1305 implementation.
 - Dzhamilia wires the CLI commands to real HTTP calls once `register`/`login` exist.
 - Nastya updates the docs as endpoints become real (status table, diagrams).
+
+---
+
+# Week 2
+
+## What was added
+
+- **`POST /register`** — checks for a duplicate login (`409`), hashes the
+  password via `crypto_interface.hash_password` (still a stub), stores the user,
+  returns `201`.
+- **`POST /login`** — validates the user and password, issues a JWT
+  (`access_token`), returns `401` on invalid credentials.
+- **JWT module** (`app/core/security.py`) — `create_access_token` /
+  `decode_token`, HS256, 15-minute lifetime, `SECRET_KEY` from the environment;
+  config in `app/core/config.py`. Unit tests for the JWT functions added.
+- **DB schema is now created automatically** on container startup
+  (`alembic upgrade head`, with a `create_all` fallback) — the Week 2 blocker is
+  resolved.
+- **Alembic migrations** and **`Item.type`** (`DataType` enum: password / card /
+  text / binary) added to the model.
+- **CLI `register` / `login`** now send real HTTP requests and store the JWT in
+  `~/.gophkeeper/config.json`.
+- **Auth unit tests** — `tests/test_api_auth.py` (register/login: success,
+  duplicate login, wrong password) and `tests/test_cli_auth.py` (CLI with mocked
+  HTTP). CI runs `pytest` with coverage (`pytest-cov`).
+
+## How Week 2 extends the MVP (vs Week 1)
+
+- Week 1 was end-to-end only for `health` (server reachable). All auth and data
+  commands were stubs printing "Not implemented".
+- Week 2 adds a real authentication path: a user can **register** and **log in**
+  from the CLI and receive a stored JWT — the first real user journey beyond a
+  liveness check.
+- The data model now distinguishes secret types (`Item.type`), preparing for the
+  secrets CRUD planned next.
+- Still stubbed: real cryptography (hashing/encryption) and the secrets commands
+  (`upload` / `download` / `history`).
+
+---

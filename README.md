@@ -74,8 +74,8 @@ python cli.py <command>
 | Command    | What it does                                 | Status            |
 |------------|----------------------------------------------|-------------------|
 | `health`   | Checks that the server is running            | ✅ works           |
-| `register` | Register a new user                          | 🚧 in progress     |
-| `login`    | Log in to your account                       | 🚧 in progress     |
+| `register` | Register a new user                          | ✅ works           |
+| `login`    | Log in to your account                       | ✅ works           |
 | `upload`   | Upload a secret or file                      | 🚧 in progress     |
 | `download` | Download a secret or file                    | 🚧 in progress     |
 | `history`  | View change history (versions)               | 🚧 in progress     |
@@ -102,6 +102,39 @@ Possible output:
 | `Unexpected response: ...`         | Server responded, but not `{"status":"ok"}` |
 
 The sequence diagram for `health` is in [ARCHITECTURE.md](ARCHITECTURE.md#diagram-health).
+
+### Authentication: `register` and `login`
+
+The server exposes two auth endpoints (full schemas in Swagger UI at `/docs`):
+
+| Method & path     | Body                      | Success                                   | Errors |
+|-------------------|---------------------------|-------------------------------------------|--------|
+| `POST /register`  | `{"login","password"}`    | `201 {"message":"User '<login>' registered successfully"}` | `409` if login already exists |
+| `POST /login`     | `{"login","password"}`    | `200 {"access_token","token_type":"bearer"}` | `401` on invalid login/password |
+
+- `login` must be at least 3 characters, `password` at least 6.
+- On login the server returns a JWT (HS256, 15-minute lifetime); the CLI stores
+  it in `~/.gophkeeper/config.json` and sends it as `Authorization: Bearer
+  <token>` on protected requests.
+
+CLI usage examples:
+
+```bash
+# Register a new user
+$ python cli.py register
+login: alice
+password: ******
+User 'alice' registered successfully
+
+# Log in (the JWT is saved to ~/.gophkeeper/config.json)
+$ python cli.py login
+login: alice
+password: ******
+Logged in successfully
+```
+
+The registration and login sequence diagrams are in
+[ARCHITECTURE.md](ARCHITECTURE.md#3-interaction-diagrams).
 
 ---
 
@@ -137,7 +170,7 @@ cp .env.example .env
 
 ```
 CLI client  ──HTTP──►  Backend (FastAPI)  ──async──►  PostgreSQL
- (requests)            register / login              users, items
+ (requests)            register / login / JWT         users, items
                        secrets CRUD
 ```
 
@@ -153,6 +186,7 @@ More detail in [ARCHITECTURE.md](ARCHITECTURE.md).
 - ✅ Crypto interface (stubs) + tests
 - ✅ CI, pre-commit, tests
 - ✅ Docker / docker-compose, deployment
-- 🚧 register / login logic, JWT
+- ✅ register / login logic, JWT
+- ✅ CLI register / login with local token storage
 - 🚧 Secrets CRUD (upload / download / history)
 - 🚧 Real cryptography implementation
