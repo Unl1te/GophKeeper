@@ -44,6 +44,7 @@
       "post": {
         "tags": ["Registration"],
         "summary": "Register",
+        "description": "Register a new user.\n\n- **login**: unique username (min 3 characters)\n- **password**: password (min 6 characters)\n\nReturns 201 Created on success, 409 Conflict if login already exists.",
         "operationId": "register_register_post",
         "requestBody": {
           "content": {
@@ -56,7 +57,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -83,6 +84,7 @@
       "post": {
         "tags": ["Authentication"],
         "summary": "Login",
+        "description": "Authenticate user and return JWT access token.\n\n- **login**: username\n- **password**: password\n\nReturns 200 OK with access token, 401 Unauthorized on invalid credentials.",
         "operationId": "login_login_post",
         "requestBody": {
           "content": {
