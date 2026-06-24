@@ -27,7 +27,7 @@ class User(Base):
     login: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-    DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     items: Mapped[list["Item"]] = relationship(back_populates="owner")
 
@@ -45,9 +45,9 @@ class Item(Base):
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(
-    DateTime(timezone=True),
-    default=lambda: datetime.now(timezone.utc),
-    onupdate=lambda: datetime.now(timezone.utc),
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     owner: Mapped["User"] = relationship(back_populates="items")
