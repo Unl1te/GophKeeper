@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(health_router, prefix="")
 app.include_router(register_router, prefix="")
 app.include_router(login_router, prefix="")
+app.include_router(items_router, prefix="") 
 
 
 @app.get("/")
