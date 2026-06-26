@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.routes import health_router, login_router, register_router
+from .api.routes import health_router, login_router, register_router, items_router
 
 app = FastAPI(
     title="GophKeeper API",
@@ -23,7 +23,7 @@ app.add_middleware(
 app.include_router(health_router, prefix="")
 app.include_router(register_router, prefix="")
 app.include_router(login_router, prefix="")
-app.include_router(items_router, prefix="") 
+app.include_router(items_router, prefix="")
 
 
 @app.get("/")

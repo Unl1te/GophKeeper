@@ -21,7 +21,7 @@ class ItemResponse(BaseModel):
     type: DataType
     version: int
     updated_at: datetime
-    metadata: Optional[Dict[str, Any]] = None   # stub
+    metadata: Optional[Dict[str, Any]] = None  # stub
 
 
 class ItemDetailResponse(ItemResponse):

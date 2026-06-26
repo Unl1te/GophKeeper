@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any
 
 from app.core.database import get_db
-from app.api.deps import get_current_user
+from app.api.dependencies import get_current_user
 from app.models.models import User, Item
 from app.schemas.item import (
     ItemCreateRequest,
@@ -19,14 +19,18 @@ router = APIRouter(prefix="/items", tags=["Items"])
 
 # ---- Sync schemas (embedded) ----
 class SyncRequest(BaseModel):
-    changes: List[Dict[str, Any]]  # list of local changes (id, version, content, metadata, deleted)
+    changes: List[
+        Dict[str, Any]
+    ]  # list of local changes (id, version, content, metadata, deleted)
 
 
 class SyncResponse(BaseModel):
     updates: List[Dict[str, Any]]  # list of server updates
 
 
-@router.post("/", response_model=ItemDetailResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=ItemDetailResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_item(
     item_data: ItemCreateRequest,
     current_user: User = Depends(get_current_user),
@@ -51,7 +55,7 @@ async def create_item(
         version=new_item.version,
         updated_at=new_item.updated_at,
         content=new_item.content,
-        metadata={}  # stub until DB field is added
+        metadata={},  # stub until DB field is added
     )
 
 
