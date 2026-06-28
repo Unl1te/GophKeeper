@@ -1,8 +1,9 @@
+import os
+
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from argon2.low_level import hash_secret_raw, Type
+from argon2.low_level import Type, hash_secret_raw
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
-import os
 
 ph = PasswordHasher()
 

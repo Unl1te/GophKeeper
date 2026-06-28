@@ -1,18 +1,18 @@
 import enum
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Enum,
     ForeignKey,
     Integer,
-    JSON,
     LargeBinary,
     String,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from typing import Any, Dict, Optional
 
 
 class DataType(str, enum.Enum):

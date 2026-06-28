@@ -33,7 +33,7 @@ async def get_items_by_user(db: AsyncSession, user_id: int) -> List[Item]:
     """Return all non-deleted items belonging to the user."""
     result = await db.execute(
         select(Item)
-        .where(Item.user_id == user_id, Item.deleted == False)
+        .where(Item.user_id == user_id, Item.deleted is False)
         .order_by(Item.id)
     )
     return list(result.scalars().all())
@@ -47,7 +47,7 @@ async def get_item_by_id(
         select(Item).where(
             Item.id == item_id,
             Item.user_id == user_id,
-            Item.deleted == False,
+            Item.deleted is False,
         )
     )
     return result.scalar_one_or_none()
