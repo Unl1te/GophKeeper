@@ -1,8 +1,9 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, LargeBinary, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, JSON, LargeBinary, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from typing import Any, Dict, Optional
 
 
 class DataType(str, enum.Enum):
@@ -43,7 +44,11 @@ class Item(Base):
         Enum(DataType, name="datatype"), nullable=False
     )
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    metadata_: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        "metadata", JSON, nullable=True, default=dict
+    )
     version: Mapped[int] = mapped_column(Integer, default=1)
+    deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
