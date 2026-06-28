@@ -1,17 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any
 
 from app.core.database import get_db
 from app.api.dependencies import get_current_user
-from app.models.models import User, Item
+from app.models.models import User
 from app.schemas.item import (
     ItemCreateRequest,
     ItemUpdateRequest,
     ItemResponse,
     ItemDetailResponse,
 )
+from app.repositories import item_repository
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/items", tags=["Items"])
@@ -19,13 +19,11 @@ router = APIRouter(prefix="/items", tags=["Items"])
 
 # ---- Sync schemas (embedded) ----
 class SyncRequest(BaseModel):
-    changes: List[
-        Dict[str, Any]
-    ]  # list of local changes (id, version, content, metadata, deleted)
+    changes: List[Dict[str, Any]]
 
 
 class SyncResponse(BaseModel):
-    updates: List[Dict[str, Any]]  # list of server updates
+    updates: List[Dict[str, Any]]
 
 
 @router.post(
@@ -36,26 +34,21 @@ async def create_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Create a new encrypted item for the authenticated user.
-    """
-    new_item = Item(
+    """Create a new encrypted item for the authenticated user."""
+    item = await item_repository.create_item(
+        db=db,
         user_id=current_user.id,
         type=item_data.type,
         content=item_data.content,
-        version=1,
+        metadata=item_data.metadata,
     )
-    db.add(new_item)
-    await db.commit()
-    await db.refresh(new_item)
-
     return ItemDetailResponse(
-        id=new_item.id,
-        type=new_item.type,
-        version=new_item.version,
-        updated_at=new_item.updated_at,
-        content=new_item.content,
-        metadata={},  # stub until DB field is added
+        id=item.id,
+        type=item.type,
+        version=item.version,
+        updated_at=item.updated_at,
+        content=item.content,
+        metadata=item.metadata_,
     )
 
 
@@ -64,21 +57,15 @@ async def list_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a list of all items belonging to the authenticated user.
-    Returns only id, type, version, updated_at (no content/metadata).
-    """
-    result = await db.execute(
-        select(Item).where(Item.user_id == current_user.id).order_by(Item.id)
-    )
-    items = result.scalars().all()
+    """Get all non-deleted items for the authenticated user (no content)."""
+    items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
     return [
         ItemResponse(
             id=item.id,
             type=item.type,
             version=item.version,
             updated_at=item.updated_at,
-            metadata={},
+            metadata=item.metadata_,
         )
         for item in items
     ]
@@ -90,26 +77,22 @@ async def get_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a single item by ID (includes encrypted content).
-    """
-    result = await db.execute(
-        select(Item).where(Item.id == item_id, Item.user_id == current_user.id)
+    """Get a single item by ID (includes encrypted content)."""
+    item = await item_repository.get_item_by_id(
+        db=db, item_id=item_id, user_id=current_user.id
     )
-    item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item not found or not owned by you",
         )
-
     return ItemDetailResponse(
         id=item.id,
         type=item.type,
         version=item.version,
         updated_at=item.updated_at,
         content=item.content,
-        metadata={},
+        metadata=item.metadata_,
     )
 
 
@@ -120,34 +103,20 @@ async def update_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update an existing item (requires correct version to avoid conflicts).
-    If version mismatches, returns 409 Conflict.
-    """
-    result = await db.execute(
-        select(Item).where(Item.id == item_id, Item.user_id == current_user.id)
-    )
-    item = result.scalar_one_or_none()
-    if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Item not found or not owned by you",
+    """Update an existing item. Returns 409 on version conflict."""
+    try:
+        item = await item_repository.update_item(
+            db=db,
+            item_id=item_id,
+            user_id=current_user.id,
+            new_content=update_data.content,
+            new_metadata=update_data.metadata,
+            version=update_data.version,
         )
-
-    # Check version
-    if item.version != update_data.version:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Version conflict: item has version {item.version}, but you provided {update_data.version}",
-        )
-
-    # Update content, ignore metadata for now
-    item.content = update_data.content
-    item.version += 1
-    # updated_at will be auto-updated by SQLAlchemy onupdate
-
-    await db.commit()
-    await db.refresh(item)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
     return ItemDetailResponse(
         id=item.id,
@@ -155,7 +124,7 @@ async def update_item(
         version=item.version,
         updated_at=item.updated_at,
         content=item.content,
-        metadata={},
+        metadata=item.metadata_,
     )
 
 
@@ -165,21 +134,13 @@ async def delete_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Hard delete an item (soft delete will be added when deleted flag is available).
-    """
-    result = await db.execute(
-        select(Item).where(Item.id == item_id, Item.user_id == current_user.id)
-    )
-    item = result.scalar_one_or_none()
-    if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Item not found or not owned by you",
+    """Soft-delete an item (sets deleted=True, data is not removed from DB)."""
+    try:
+        await item_repository.delete_item(
+            db=db, item_id=item_id, user_id=current_user.id
         )
-
-    await db.delete(item)
-    await db.commit()
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.post("/sync", response_model=SyncResponse)
@@ -188,22 +149,15 @@ async def sync_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Batch sync endpoint.
-    Returns all items belonging to the user (full list, including content).
-    In a real implementation, we'd filter by version to only return updates.
-    """
-    result = await db.execute(
-        select(Item).where(Item.user_id == current_user.id).order_by(Item.id)
-    )
-    items = result.scalars().all()
+    """Batch sync: returns all non-deleted items for the user."""
+    items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
     updates = [
         {
             "id": item.id,
             "version": item.version,
             "updated_at": item.updated_at.isoformat(),
-            "content": item.content.hex(),  # base64 or hex; client will decode
-            "metadata": {},  # stub
+            "content": item.content.hex(),
+            "metadata": item.metadata_,
         }
         for item in items
     ]
