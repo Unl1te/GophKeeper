@@ -1,4 +1,5 @@
-from argon2 import PasswordHasher, VerifyMismatchError
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 from argon2.low_level import hash_secret_raw, Type
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 import os
