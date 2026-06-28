@@ -6,29 +6,33 @@ import os
 
 ph = PasswordHasher()
 
+
 def hash_password(password: str) -> str:
-    return ph.hash(password) 
+    return ph.hash(password)
 
 
 def verify_password(password: str, hashed: str) -> bool:
     try:
-        return ph.verify(hashed,password)
+        return ph.verify(hashed, password)
     except VerifyMismatchError:
         return False
+
 
 def encrypt_data(data: bytes, key: bytes) -> bytes:
     cipher = ChaCha20Poly1305(key)
 
-    nonce = os.urandom(12) 
-    encrypted = cipher.encrypt(nonce,data, None)
+    nonce = os.urandom(12)
+    encrypted = cipher.encrypt(nonce, data, None)
     return nonce + encrypted
+
 
 def decrypt_data(token: bytes, key: bytes) -> bytes:
     nonce = token[:12]
     ciphertext = token[12:]
 
     cipher = ChaCha20Poly1305(key)
-    return cipher.decrypt(nonce,ciphertext,None)
+    return cipher.decrypt(nonce, ciphertext, None)
+
 
 def derive_key(password: str, salt: bytes) -> bytes:
     return hash_secret_raw(
@@ -38,8 +42,9 @@ def derive_key(password: str, salt: bytes) -> bytes:
         memory_cost=65536,
         parallelism=4,
         hash_len=32,
-        type=Type.ID
+        type=Type.ID,
     )
+
 
 def sign_data(data: bytes, private_key: bytes = None) -> bytes:
     # stub for future usage
