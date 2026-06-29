@@ -109,7 +109,9 @@ def login():
 
 def add_item():
     parser = argparse.ArgumentParser(prog="cli.py add", add_help=False)
-    parser.add_argument("--type", required=True, choices=["password", "card", "text", "binary"])
+    parser.add_argument(
+        "--type", required=True, choices=["password", "card", "text", "binary"]
+    )
     parser.add_argument("--meta", action="append", help="metadata in key=value format")
     parser.add_argument("--file", help="read content from file (for binary type)")
     parser.add_argument("--content", help="content string (for text/password/card)")
@@ -172,11 +174,15 @@ def add_item():
         )
         if response.status_code == 201:
             data = response.json()
-            print_success(f"Item created (id: {data['id']}, version: {data['version']})")
+            print_success(
+                f"Item created (id: {data['id']}, version: {data['version']})"
+            )
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
-            print_error(f"{response.status_code} — {response.json().get('detail', 'Unknown error')}")
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
     except requests.exceptions.ConnectionError:
         print_error("Could not connect to server")
 
@@ -193,11 +199,15 @@ def list_items():
             print("-" * 50)
             for item in items:
                 updated = item["updated_at"][:19]
-                print(f"{item['id']:<6} {item['type']:<10} {item['version']:<8} {updated}")
+                print(
+                    f"{item['id']:<6} {item['type']:<10} {item['version']:<8} {updated}"
+                )
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
-            print_error(f"{response.status_code} — {response.json().get('detail', 'Unknown error')}")
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
     except requests.exceptions.ConnectionError:
         print_error("Could not connect to server")
 
@@ -233,7 +243,9 @@ def get_item():
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
-            print_error(f"{response.status_code} — {response.json().get('detail', 'Unknown error')}")
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
     except requests.exceptions.ConnectionError:
         print_error("Could not connect to server")
 
@@ -250,7 +262,9 @@ def delete_item():
         return
 
     try:
-        response = requests.delete(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
+        response = requests.delete(
+            f"{SERVER_URL}/items/{item_id}", headers=get_headers()
+        )
         if response.status_code == 204:
             print_success(f"Item {item_id} deleted")
         elif response.status_code == 404:
@@ -258,7 +272,9 @@ def delete_item():
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
-            print_error(f"{response.status_code} — {response.json().get('detail', 'Unknown error')}")
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
     except requests.exceptions.ConnectionError:
         print_error("Could not connect to server")
 
@@ -272,8 +288,7 @@ def version():
 
 
 def help():
-    print(
-        """
+    print("""
 GophKeeper CLI - available commands:
 
   health    check if the server is running
@@ -294,8 +309,7 @@ Examples:
   python cli.py add --type text --content "my secret" --meta note=test
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
-"""
-    )
+""")
 
 
 COMMANDS = {
