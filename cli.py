@@ -201,32 +201,47 @@ def _print_items(items):
 
 def list_items():
     """
-    Fetch current item list from the server and update cache.
-    If server is unreachable, fall back to cached data (offline mode).
+    List items from the local cache by default. Use --refresh to pull from server.
+    If cache is empty or stale (missing required fields), automatically refresh.
+    Falls back to cache if server is unreachable.
     """
-    try:
-        response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
-        if response.status_code == 200:
-            cache.sync(response.json())
-            items = cache.list_items()
-            if not items:
-                print("No items found")
+    refresh = "--refresh" in sys.argv[2:]
+    cached = cache.list_items()
+
+    # Check if cache is stale (items missing type or version)
+    stale = False
+    if cached and not refresh:
+        stale = any(
+            item.get("type") is None or item.get("version") is None for item in cached
+        )
+
+    # If refresh requested, cache empty, or stale, go to server
+    if refresh or not cached or stale:
+        try:
+            response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
+            if response.status_code == 200:
+                cache.sync(response.json())
+                cached = cache.list_items()
+            elif response.status_code == 401:
+                print_error("Not authenticated. Please login first.")
                 return
-            _print_items(items)
-        elif response.status_code == 401:
-            print_error("Not authenticated. Please login first.")
-        else:
-            print_error(
-                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
-            )
-    except requests.exceptions.ConnectionError:
-        # Offline: show cached data if available
-        cached = cache.list_items()
-        if cached:
+            else:
+                print_error(
+                    f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+                )
+                return
+        except requests.exceptions.ConnectionError:
+            # If server is unreachable, fall back to cache (if any)
+            if not cached:
+                print_error("Could not connect to server")
+                return
             print("(offline — showing cached items)")
-            _print_items(cached)
-        else:
-            print_error("Could not connect to server")
+
+    if not cached:
+        print("No items found")
+        return
+
+    _print_items(cached)
 
 
 def get_item():
@@ -321,7 +336,7 @@ GophKeeper CLI - available commands:
   login     login to your account
 
   add       add a new item (--type password|card|text|binary --meta key=value)
-  list      list all items (always fetches fresh list from server)
+  list      list all items (from cache; use 'list --refresh' to pull from server)
   get <id>  get and decrypt an item by ID
   delete <id>  delete an item by ID
 
