@@ -212,6 +212,15 @@ def list_items():
     refresh = "--refresh" in sys.argv[2:]
     cached = cache.list_items()
 
+    # If cache is non-empty but contains items without required fields, treat as stale
+    if not refresh and cached:
+        stale = any(
+            item.get("type") is None or item.get("version") is None
+            for item in cached
+        )
+        if stale:
+            refresh = True
+
     if refresh or not cached:
         try:
             response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
