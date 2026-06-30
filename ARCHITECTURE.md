@@ -66,8 +66,11 @@ erDiagram
     ITEMS {
         int id PK
         int user_id FK
+        enum type "password / card / text / binary"
         bytes content "encrypted on the client"
+        json metadata "free-form, not encrypted"
         int version
+        bool deleted "soft delete"
         datetime updated_at
     }
 ```
@@ -157,10 +160,10 @@ sequenceDiagram
     end
 ```
 
-### Diagram: file upload (stub — target scenario)
+### Diagram: add item
 
-Shows the role of client-side encryption: content is encrypted BEFORE being sent
-to the server.
+Implemented flow (`POST /items`). Content is encrypted on the client BEFORE it is
+sent; the server stores only ciphertext.
 
 ```mermaid
 sequenceDiagram
@@ -170,21 +173,72 @@ sequenceDiagram
     participant S as Backend
     participant DB as PostgreSQL
 
-    U->>C: python cli.py upload <file>
-    C->>S: check/presence of token (login)
-    Note over S: PLANNED: JWT verification
-    C->>K: encrypt_data() — ChaCha20-Poly1305
+    U->>C: python cli.py add --type text --content "..."
+    C->>U: ask for master password
+    U-->>C: master password
+    C->>K: derive_key(master password) + encrypt_data() — ChaCha20-Poly1305
     K-->>C: encrypted bytes
-    C->>K: sign_data() — Ed25519 (command signature)
-    K-->>C: signature
-    C->>S: POST /items (Bearer token, encrypted content, signature)
-    rect rgb(235, 245, 235)
-        Note over S,DB: PLANNED
-        S->>S: verify token and signature (verify_signature), resolve user_id
-        S->>DB: INSERT/UPDATE Item(content, version++)
+    C->>S: POST /items (Bearer JWT, {type, content, metadata})
+    S->>S: verify JWT → resolve user_id
+    S->>DB: INSERT Item(type, content, metadata, version=1)
+    DB-->>S: ok
+    S-->>C: 201 {id, type, version, ...}
+    C-->>U: "Success: Item created (id, version)"
+```
+
+### Diagram: get item
+
+Implemented flow (`GET /items/{id}`). The server returns ciphertext; the client
+decrypts it locally.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as CLI
+    participant K as Crypto layer
+    participant S as Backend
+    participant DB as PostgreSQL
+
+    U->>C: python cli.py get <id>
+    C->>S: GET /items/{id} (Bearer JWT)
+    S->>DB: SELECT item WHERE id = ? AND user_id = ?
+    alt not found / not owned
+        S-->>C: 404 Not Found
+        C-->>U: "Error: Item not found"
+    else found
+        S-->>C: 200 {..., content (encrypted)}
+        C->>U: ask for master password
+        U-->>C: master password
+        C->>K: derive_key() + decrypt_data()
+        K-->>C: plaintext
+        C-->>U: print item + decrypted content
+    end
+```
+
+### Diagram: update & synchronization (version conflict)
+
+Each item carries a `version`. On update the client sends the version it has; if
+it is stale, the server rejects with `409 Conflict` so the client can refetch and
+retry. `POST /items/sync` returns the full current set for reconciliation.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as CLI
+    participant S as Backend
+    participant DB as PostgreSQL
+
+    C->>S: PUT /items/{id} (Bearer JWT, {content, metadata, version})
+    S->>DB: SELECT item (current version)
+    alt client version is stale
+        S-->>C: 409 Conflict (current version)
+        C->>S: GET /items/{id} (refetch latest)
+        S-->>C: 200 latest item
+        Note over C: re-apply change on top of latest, retry
+    else version matches
+        S->>DB: UPDATE Item(content, metadata, version++)
         DB-->>S: ok
-        S-->>C: 200 {"id", "version"}
-        C-->>U: "File uploaded (version N)"
+        S-->>C: 200 {id, version++}
     end
 ```
 
@@ -208,5 +262,42 @@ The chosen algorithms are tailored for a password manager where data is encrypte
 - **Implementation**: `cryptography.hazmat.primitives.asymmetric.ed25519`.
 
 All cryptographic operations are encapsulated in the `crypto_interface.py` module, providing a unified interface for both CLI and backend.
+
+---
+
+## 5. Items API and synchronization
+
+The secrets API (`app/api/routes/items.py`) exposes CRUD over a user's encrypted
+items. Every endpoint is protected by JWT (`get_current_user` dependency) and
+scoped to the authenticated user.
+
+| Method & path        | Purpose                                                      |
+|----------------------|-------------------------------------------------------------|
+| `POST /items/`       | Create an item (`type`, encrypted `content`, `metadata`) → `201` |
+| `GET /items/`        | List the user's items without content (`id`, `type`, `version`, `updated_at`, `metadata`) |
+| `GET /items/{id}`    | Get a single item including encrypted `content` (`404` if not found/owned) |
+| `PUT /items/{id}`    | Update with a version check (`409` on conflict, `404` if missing) |
+| `DELETE /items/{id}` | Soft-delete (`deleted = true`, row kept) → `204`            |
+| `POST /items/sync`   | Batch sync: returns all non-deleted items for reconciliation |
+
+**Synchronization model.**
+
+- The server is the source of truth; each item has an integer `version`.
+- `version` auto-increments on every successful update and `updated_at` is
+  refreshed.
+- The client sends the version it currently holds on `PUT`. If it is stale, the
+  server returns `409 Conflict` with the current version; the client refetches
+  the latest item and retries (Last-Write-Wins is planned for full auto-sync).
+- `DELETE` is a **soft delete**: the row stays in the database with
+  `deleted = true` and is excluded from `list` / `sync` results.
+- `POST /items/sync` returns the full current set (`id`, `version`,
+  `updated_at`, `content`, `metadata`) so a client can reconcile local state.
+- The CLI keeps a **local cache** (`~/.gophkeeper/cache.json`): `list` reads from
+  it by default and refreshes from the server with `--refresh` (falling back to
+  the cache when offline); `add` / `get` / `delete` keep it in sync.
+
+**Encryption boundary.** The CLI encrypts `content` with ChaCha20-Poly1305
+(key derived from the master password) before sending, and decrypts on `get`.
+The backend never sees plaintext — it stores and returns ciphertext only.
 
 ---

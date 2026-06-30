@@ -103,3 +103,61 @@ Found during the demo:
   (`upload` / `download` / `history`).
 
 ---
+
+# Week 3
+
+## What was added
+
+- **Server CRUD for items** (`app/api/routes/items.py`) — `POST /items` (create),
+  `GET /items` (list, no content), `GET /items/{id}` (detail), `PUT /items/{id}`
+  (update with version check), `DELETE /items/{id}` (soft delete). All endpoints
+  are protected by JWT.
+- **`POST /items/sync`** — batch endpoint that returns all non-deleted items.
+- **Item repository layer**, plus `metadata` (JSON) and `deleted` (soft-delete)
+  fields and migration `0003` (Mikhail).
+- **Real cryptography** (Ivan) — `crypto_interface.py` stubs replaced with
+  Argon2id password hashing and ChaCha20-Poly1305 (AEAD) encrypt/decrypt, plus
+  key derivation from the master password.
+- **CLI `add` / `list` / `get` / `delete`** (Dzhamilia) with client-side
+  encryption: derives the key from a master password, encrypts content before
+  upload, decrypts on `get`.
+- **Local cache wired into the CLI** (`cli_cache.py`, `~/.gophkeeper/cache.json`)
+  — `list` reads from the cache by default (`--refresh` pulls from the server and
+  falls back to the cache when offline); `add` / `get` / `delete` keep it in sync.
+- **Item tests** — `tests/test_api_items.py` (API CRUD + `409` conflict),
+  `tests/test_cli_items.py` and `tests/test_cli_cache_integration.py` (Demian).
+
+## How synchronization works
+
+- The server is the source of truth; each item has an integer `version`.
+- On update (`PUT /items/{id}`) the client sends the version it holds; if it is
+  stale, the server returns `409 Conflict` with the current version, and the
+  client is expected to refetch and retry.
+- `version` auto-increments on every successful update; `updated_at` is refreshed.
+- `DELETE` is a **soft delete** (`deleted = true`): rows stay in the DB and are
+  excluded from `list` / `sync`.
+- `POST /items/sync` returns the full current set so a client can reconcile.
+
+## How Week 3 extends the MVP (vs Week 2)
+
+- Week 2 added authentication (register / login + JWT). Week 3 adds the actual
+  secret storage: a logged-in user can **add**, **list**, **get**, and **delete**
+  encrypted items end-to-end.
+- Content is encrypted on the client (ChaCha20-Poly1305, key from the master
+  password); the server only ever stores ciphertext.
+- Secrets now carry a `type` and free-form `metadata`; versioning and soft delete
+  lay the groundwork for multi-client synchronization.
+
+## Report material (Week 3)
+
+New features this week: server CRUD for items (+ batch `/sync`), real client-side
+cryptography (Argon2id, ChaCha20-Poly1305), and CLI `add` / `list` / `get` /
+`delete` with encrypt/decrypt.
+
+Screenshots to capture for the report:
+
+- [ ] Swagger UI (`/docs`) showing the new `/items` endpoints.
+- [ ] CLI: `add`, `list`, `get` (decrypted output), `delete` in action.
+
+MVP comparison: see "How Week 3 extends the MVP (vs Week 2)" above.
+
