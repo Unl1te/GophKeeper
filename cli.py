@@ -99,6 +99,7 @@ def login():
             data = response.json()
             token = data.get("access_token")
             save_token(token)
+            cache.clear()
             print("Logged in successfully")
         elif response.status_code == 401:
             print("Error: invalid login or password")
