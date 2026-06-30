@@ -76,9 +76,12 @@ python cli.py <command>
 | `health`   | Checks that the server is running            | ✅ works           |
 | `register` | Register a new user                          | ✅ works           |
 | `login`    | Log in to your account                       | ✅ works           |
-| `upload`   | Upload a secret or file                      | 🚧 in progress     |
-| `download` | Download a secret or file                    | 🚧 in progress     |
-| `history`  | View change history (versions)              | 🚧 in progress     |
+| `add`      | Add a new item (encrypts content client-side)| ✅ works           |
+| `list`     | List your items (from local cache; `--refresh` to pull from server) | ✅ works           |
+| `get`      | Get and decrypt an item by id                | ✅ works           |
+| `delete`   | Delete an item by id (soft delete)           | ✅ works           |
+| `history`  | View change history (versions)               | 🚧 in progress     |
+| `version`  | Show version and build date                  | 🚧 in progress     |
 | `help`     | Show help                                    | ✅ works           |
 
 ### The `health` command (in detail)
@@ -135,6 +138,62 @@ Logged in successfully
 The registration and login sequence diagrams are in
 [ARCHITECTURE.md](ARCHITECTURE.md#3-interaction-diagrams).
 
+### Items: `add` / `list` / `get` / `delete`
+
+All `/items*` endpoints require a valid JWT (`Authorization: Bearer <token>`),
+so log in first. Content is encrypted on the client (ChaCha20-Poly1305, with the
+key derived from a master password) before it is sent — the server only ever
+stores ciphertext.
+
+| Method & path        | Body                                  | Success                | Errors |
+|----------------------|---------------------------------------|------------------------|--------|
+| `POST /items/`       | `{type, content (hex), metadata}`     | `201` item detail      | `401` |
+| `GET /items/`        | —                                     | `200` list (no content)| `401` |
+| `GET /items/{id}`    | —                                     | `200` item + content   | `404`, `401` |
+| `PUT /items/{id}`    | `{content, metadata, version}`        | `200` item detail      | `409` version conflict, `404`, `401` |
+| `DELETE /items/{id}` | —                                     | `204` (soft delete)    | `404`, `401` |
+| `POST /items/sync`   | `{changes: [...]}`                    | `200 {updates: [...]}` | `401` |
+
+CLI usage examples (each `add` / `get` asks for the master password to
+derive the encryption key):
+
+```bash
+# add a text secret with metadata
+$ python cli.py add --type text --content "my secret" --meta note=test
+Master password: ******
+Success: Item created (id: 1, version: 1)
+
+# add a binary file
+$ python cli.py add --type binary --file ./secret.pdf
+
+# list your items
+$ python cli.py list
+ID     Type       Version  Updated At
+--------------------------------------------------
+1      text       1        2026-06-30T12:00:00
+
+# get and decrypt an item
+$ python cli.py get 1
+Master password: ******
+Item #1
+Type: text
+...
+--- Content ---
+my secret
+
+# delete an item (soft delete)
+$ python cli.py delete 1
+Are you sure you want to delete item 1? [y/N] y
+Success: Item 1 deleted
+```
+
+`list` reads from a local cache (`~/.gophkeeper/cache.json`) by default; pass
+`--refresh` to pull the latest from the server. `add` / `get` / `delete` keep the
+cache in sync, and `list` falls back to the cache when the server is unreachable.
+
+The CRUD and synchronization sequence diagrams are in
+[ARCHITECTURE.md](ARCHITECTURE.md#3-interaction-diagrams).
+
 ---
 
 ## Environment variables
@@ -187,5 +246,7 @@ More detail in [ARCHITECTURE.md](ARCHITECTURE.md).
 - ✅ Docker / docker-compose, deployment
 - ✅ register / login logic, JWT
 - ✅ CLI register / login with local token storage
-- 🚧 Secrets CRUD (upload / download / history)
-- 🚧 Real cryptography implementation
+- ✅ Secrets CRUD (`add` / `list` / `get` / `delete`) + `/items/sync`
+- ✅ Real cryptography (Argon2id hashing, ChaCha20-Poly1305 encryption)
+- ✅ Local cache for the CLI (`list` from cache, `--refresh`, offline fallback)
+- 🚧 Auto-sync retry on version conflict; CLI `update` / `history` / `version`
