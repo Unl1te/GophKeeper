@@ -156,7 +156,7 @@ cryptography (Argon2id, ChaCha20-Poly1305), and CLI `add` / `list` / `get` /
 
 Screenshots to capture for the report:
 
-- [X] Swagger UI (`[/docs](http://10.93.27.17/docs)`) showing the new `/items` endpoints.
+- [X] Swagger UI (`http://10.93.27.17/docs`) showing the new `/items` endpoints.
 - [X] CLI: `register`, `login`, `add`, `list` in action. 
 <img width="1371" height="356" alt="26-06-30 231527" src="https://github.com/user-attachments/assets/34bba2eb-1ad9-4428-a6ca-37e84e162326" />
 
