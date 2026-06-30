@@ -2,9 +2,11 @@
 Unit tests for JWT functions in app.core.security
 """
 import time
-import pytest
 from datetime import timedelta
-from jose import jwt, JWTError
+
+import pytest
+from jose import JWTError, jwt
+
 from app.core.config import settings
 from app.core.security import create_access_token, decode_token
 

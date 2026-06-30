@@ -1,6 +1,8 @@
-from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
+from pydantic import BaseModel, Field
+
 from app.models.models import DataType
 
 

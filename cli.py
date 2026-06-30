@@ -1,8 +1,8 @@
+import argparse
+import getpass
 import json
 import os
 import sys
-import argparse
-import getpass
 
 import requests
 
