@@ -259,7 +259,9 @@ def get_item():
         elif response.status_code == 404:
             # Remove stale entry from cache
             cache.remove(item_id)
-            print_error(f"Item {item_id} not found on server (removed from local cache)")
+            print_error(
+                f"Item {item_id} not found on server (removed from local cache)"
+            )
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
