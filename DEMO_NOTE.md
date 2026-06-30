@@ -160,6 +160,4 @@ Screenshots to capture for the report:
 - [X] CLI: `register`, `login`, `add`, `list` in action. 
 <img width="1371" height="356" alt="26-06-30 231527" src="https://github.com/user-attachments/assets/34bba2eb-1ad9-4428-a6ca-37e84e162326" />
 
-
-MVP comparison: see "How Week 3 extends the MVP (vs Week 2)" above.
-
+---
