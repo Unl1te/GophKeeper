@@ -45,16 +45,13 @@ jobs:
           echo "No tests found. Skipping."
         fi
 
-    - name: Commit and Push Coverage Report
-      run: |
-        if [ -f coverage.xml ]; then
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@://github.com"
-          git add coverage.xml
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update test coverage report [skip ci]" && git push)
-        else
-          echo "coverage.xml not found. Skipping."
-        fi
+    - name: Upload Coverage Report to Artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-coverage-xml
+        path: coverage.xml
+        retention-days: 14
 
     - name: Validate Docker Compose
       run: |
