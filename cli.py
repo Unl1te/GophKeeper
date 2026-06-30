@@ -7,10 +7,16 @@ import getpass
 import requests
 
 from crypto_interface import derive_key, encrypt_data, decrypt_data
+from cli_cache import LocalCache
 
 SERVER_URL = "http://localhost"
 CONFIG_DIR = os.path.expanduser("~/.gophkeeper")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+
+# Local metadata cache (id/version/type/updated_at/metadata). Lets `list` work
+# without a server round-trip every time and stay usable offline; kept in sync
+# after add/get/delete and on `list --refresh`.
+cache = LocalCache()
 
 
 # Token management
@@ -174,6 +180,7 @@ def add_item():
         )
         if response.status_code == 201:
             data = response.json()
+            cache.upsert(data)
             print_success(
                 f"Item created (id: {data['id']}, version: {data['version']})"
             )
@@ -187,29 +194,49 @@ def add_item():
         print_error("Could not connect to server")
 
 
+def _print_items(items):
+    print(f"{'ID':<6} {'Type':<10} {'Version':<8} {'Updated At'}")
+    print("-" * 50)
+    for item in items:
+        updated = (item.get("updated_at") or "")[:19]
+        print(f"{item['id']:<6} {item['type']:<10} {item['version']:<8} {updated}")
+
+
 def list_items():
-    try:
-        response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
-        if response.status_code == 200:
-            items = response.json()
-            if not items:
-                print("No items found")
+    """List items from the local cache; hit the server only when needed.
+
+    Reads from the cache by default (no server round-trip). Pass ``--refresh``
+    (or start with an empty cache) to pull the current list from the server and
+    update the cache. If the server is unreachable, falls back to the cache.
+    """
+    refresh = "--refresh" in sys.argv[2:]
+    cached = cache.list_items()
+
+    if refresh or not cached:
+        try:
+            response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
+            if response.status_code == 200:
+                cache.sync(response.json())
+                cached = cache.list_items()
+            elif response.status_code == 401:
+                print_error("Not authenticated. Please login first.")
                 return
-            print(f"{'ID':<6} {'Type':<10} {'Version':<8} {'Updated At'}")
-            print("-" * 50)
-            for item in items:
-                updated = item["updated_at"][:19]
-                print(
-                    f"{item['id']:<6} {item['type']:<10} {item['version']:<8} {updated}"
+            else:
+                print_error(
+                    f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
                 )
-        elif response.status_code == 401:
-            print_error("Not authenticated. Please login first.")
-        else:
-            print_error(
-                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
-            )
-    except requests.exceptions.ConnectionError:
-        print_error("Could not connect to server")
+                return
+        except requests.exceptions.ConnectionError:
+            if not cached:
+                print_error("Could not connect to server")
+                return
+            print("(offline — showing cached items)")
+
+    if not cached:
+        print("No items found")
+        return
+
+    _print_items(cached)
 
 
 def get_item():
@@ -222,6 +249,8 @@ def get_item():
         response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
         if response.status_code == 200:
             item = response.json()
+            # Keep the cache's version/metadata for this item current.
+            cache.upsert(item)
             master_password = ask_master_password()
             key = derive_encryption_key(master_password)
 
@@ -266,6 +295,7 @@ def delete_item():
             f"{SERVER_URL}/items/{item_id}", headers=get_headers()
         )
         if response.status_code == 204:
+            cache.remove(item_id)
             print_success(f"Item {item_id} deleted")
         elif response.status_code == 404:
             print_error(f"Item {item_id} not found")
@@ -288,7 +318,8 @@ def version():
 
 
 def help():
-    print("""
+    print(
+        """
 GophKeeper CLI - available commands:
 
   health    check if the server is running
@@ -296,7 +327,7 @@ GophKeeper CLI - available commands:
   login     login to your account
 
   add       add a new item (--type password|card|text|binary --meta key=value)
-  list      list all items
+  list      list all items (from cache; use 'list --refresh' to pull from server)
   get <id>  get and decrypt an item by ID
   delete <id>  delete an item by ID
 
@@ -309,7 +340,8 @@ Examples:
   python cli.py add --type text --content "my secret" --meta note=test
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
-""")
+"""
+    )
 
 
 COMMANDS = {
