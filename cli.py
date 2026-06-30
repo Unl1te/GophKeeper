@@ -13,9 +13,6 @@ SERVER_URL = "http://localhost"
 CONFIG_DIR = os.path.expanduser("~/.gophkeeper")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
-# Local metadata cache (id/version/type/updated_at/metadata). Lets `list` work
-# without a server round-trip every time and stay usable offline; kept in sync
-# after add/get/delete and on `list --refresh`.
 cache = LocalCache()
 
 
@@ -203,48 +200,33 @@ def _print_items(items):
 
 
 def list_items():
-    """List items from the local cache; hit the server only when needed.
-
-    Reads from the cache by default (no server round-trip). Pass ``--refresh``
-    (or start with an empty cache) to pull the current list from the server and
-    update the cache. If the server is unreachable, falls back to the cache.
     """
-    refresh = "--refresh" in sys.argv[2:]
-    cached = cache.list_items()
-
-    # If cache is non-empty but contains items without required fields, treat as stale
-    if not refresh and cached:
-        stale = any(
-            item.get("type") is None or item.get("version") is None for item in cached
-        )
-        if stale:
-            refresh = True
-
-    if refresh or not cached:
-        try:
-            response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
-            if response.status_code == 200:
-                cache.sync(response.json())
-                cached = cache.list_items()
-            elif response.status_code == 401:
-                print_error("Not authenticated. Please login first.")
+    Fetch current item list from the server and update cache.
+    If server is unreachable, fall back to cached data (offline mode).
+    """
+    try:
+        response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
+        if response.status_code == 200:
+            cache.sync(response.json())
+            items = cache.list_items()
+            if not items:
+                print("No items found")
                 return
-            else:
-                print_error(
-                    f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
-                )
-                return
-        except requests.exceptions.ConnectionError:
-            if not cached:
-                print_error("Could not connect to server")
-                return
+            _print_items(items)
+        elif response.status_code == 401:
+            print_error("Not authenticated. Please login first.")
+        else:
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
+    except requests.exceptions.ConnectionError:
+        # Offline: show cached data if available
+        cached = cache.list_items()
+        if cached:
             print("(offline — showing cached items)")
-
-    if not cached:
-        print("No items found")
-        return
-
-    _print_items(cached)
+            _print_items(cached)
+        else:
+            print_error("Could not connect to server")
 
 
 def get_item():
@@ -257,7 +239,6 @@ def get_item():
         response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
         if response.status_code == 200:
             item = response.json()
-            # Keep the cache's version/metadata for this item current.
             cache.upsert(item)
             master_password = ask_master_password()
             key = derive_encryption_key(master_password)
@@ -276,7 +257,9 @@ def get_item():
             except UnicodeDecodeError:
                 print(decrypted.hex())
         elif response.status_code == 404:
-            print_error(f"Item {item_id} not found")
+            # Remove stale entry from cache
+            cache.remove(item_id)
+            print_error(f"Item {item_id} not found on server (removed from local cache)")
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
@@ -306,7 +289,8 @@ def delete_item():
             cache.remove(item_id)
             print_success(f"Item {item_id} deleted")
         elif response.status_code == 404:
-            print_error(f"Item {item_id} not found")
+            cache.remove(item_id)
+            print_error(f"Item {item_id} not found (removed from local cache)")
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
@@ -335,7 +319,7 @@ GophKeeper CLI - available commands:
   login     login to your account
 
   add       add a new item (--type password|card|text|binary --meta key=value)
-  list      list all items (from cache; use 'list --refresh' to pull from server)
+  list      list all items (always fetches fresh list from server)
   get <id>  get and decrypt an item by ID
   delete <id>  delete an item by ID
 
