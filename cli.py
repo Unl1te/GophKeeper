@@ -1,12 +1,12 @@
+import argparse
+import getpass
 import json
 import os
 import sys
-import argparse
-import getpass
 
 import requests
 
-from crypto_interface import derive_key, encrypt_data, decrypt_data
+from crypto_interface import decrypt_data, derive_key, encrypt_data
 
 SERVER_URL = "http://localhost"
 CONFIG_DIR = os.path.expanduser("~/.gophkeeper")
@@ -288,7 +288,8 @@ def version():
 
 
 def help():
-    print("""
+    print(
+        """
 GophKeeper CLI - available commands:
 
   health    check if the server is running
@@ -309,7 +310,8 @@ Examples:
   python cli.py add --type text --content "my secret" --meta note=test
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
-""")
+"""
+    )
 
 
 COMMANDS = {
