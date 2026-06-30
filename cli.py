@@ -326,7 +326,8 @@ def version():
 
 
 def help():
-    print("""
+    print(
+        """
 GophKeeper CLI - available commands:
 
   health    check if the server is running
@@ -347,7 +348,8 @@ Examples:
   python cli.py add --type text --content "my secret" --meta note=test
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
-""")
+"""
+    )
 
 
 COMMANDS = {
