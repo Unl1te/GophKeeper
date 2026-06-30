@@ -215,8 +215,7 @@ def list_items():
     # If cache is non-empty but contains items without required fields, treat as stale
     if not refresh and cached:
         stale = any(
-            item.get("type") is None or item.get("version") is None
-            for item in cached
+            item.get("type") is None or item.get("version") is None for item in cached
         )
         if stale:
             refresh = True
@@ -327,8 +326,7 @@ def version():
 
 
 def help():
-    print(
-        """
+    print("""
 GophKeeper CLI - available commands:
 
   health    check if the server is running
@@ -349,8 +347,7 @@ Examples:
   python cli.py add --type text --content "my secret" --meta note=test
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
-"""
-    )
+""")
 
 
 COMMANDS = {
