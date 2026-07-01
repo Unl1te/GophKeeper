@@ -21,26 +21,16 @@ const itemMeta = document.getElementById('itemMeta');
 const itemId = document.getElementById('itemId');
 
 // --- Crypto imports (CDN via importmap) ---
-import loadArgon2id from 'argon2id';
+import argon2id from 'argon2id';
 import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
 
 // --- Constants ---
 const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes'); // must match CLI
 
 // --- Helper: derive key using Argon2id (WASM) ---
-let argon2idWasm = null;
-
-async function getArgon2id() {
-    if (!argon2idWasm) {
-        argon2idWasm = await loadArgon2id();
-    }
-    return argon2idWasm;
-}
-
 async function deriveKey(masterPassword) {
-    const argon2id = await getArgon2id();
     const passwordBytes = new TextEncoder().encode(masterPassword);
-    const hash = argon2id({
+    const hash = await argon2id({
         password: passwordBytes,
         salt: SALT,
         parallelism: 4,
@@ -57,7 +47,6 @@ function encryptData(plaintext, key) {
     const cipher = new ChaCha20Poly1305(key);
     const plaintextBytes = new TextEncoder().encode(plaintext);
     const ciphertext = cipher.encrypt(nonce, plaintextBytes);
-    // combine nonce + ciphertext (ciphertext includes tag)
     const result = new Uint8Array(nonce.length + ciphertext.length);
     result.set(nonce, 0);
     result.set(ciphertext, nonce.length);
@@ -233,7 +222,6 @@ async function getItem() {
         const key = await deriveKey(masterPassword);
         const item = await apiRequest('/items/' + id);
 
-        // Decrypt content
         let decryptedText = '';
         try {
             const combined = hexToBytes(item.content);
@@ -242,7 +230,6 @@ async function getItem() {
             decryptedText = '(decryption failed: wrong password or corrupted data)';
         }
 
-        // Display item with decrypted content
         let html = '<div style="border:1px solid #45475a; padding:1em; border-radius:4px; margin-top:0.5em;">';
         html += '<div><strong>ID:</strong> ' + item.id + '</div>';
         html += '<div><strong>Type:</strong> ' + item.type + '</div>';
