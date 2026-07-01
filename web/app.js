@@ -1,6 +1,5 @@
 // --- Configuration ---
-// Use relative path so it works both locally and on the VM.
-const API_BASE = '';  // empty = same origin (relative requests)
+const API_BASE = '';  // relative path
 
 // --- DOM refs ---
 const loginInput = document.getElementById('loginInput');
@@ -20,6 +19,71 @@ const itemType = document.getElementById('itemType');
 const itemContent = document.getElementById('itemContent');
 const itemMeta = document.getElementById('itemMeta');
 const itemId = document.getElementById('itemId');
+
+// --- Crypto imports (CDN via importmap) ---
+import loadArgon2id from 'argon2id';
+import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
+
+// --- Constants ---
+const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes'); // must match CLI
+
+// --- Helper: derive key using Argon2id (WASM) ---
+let argon2idWasm = null;
+
+async function getArgon2id() {
+    if (!argon2idWasm) {
+        argon2idWasm = await loadArgon2id();
+    }
+    return argon2idWasm;
+}
+
+async function deriveKey(masterPassword) {
+    const argon2id = await getArgon2id();
+    const passwordBytes = new TextEncoder().encode(masterPassword);
+    const hash = argon2id({
+        password: passwordBytes,
+        salt: SALT,
+        parallelism: 4,
+        passes: 3,
+        memorySize: 65536, // 64 MiB
+        hashLen: 32,       // 256-bit key
+    });
+    return hash; // Uint8Array(32)
+}
+
+// --- Encryption / Decryption with ChaCha20-Poly1305 ---
+function encryptData(plaintext, key) {
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+    const cipher = new ChaCha20Poly1305(key);
+    const plaintextBytes = new TextEncoder().encode(plaintext);
+    const ciphertext = cipher.encrypt(nonce, plaintextBytes);
+    // combine nonce + ciphertext (ciphertext includes tag)
+    const result = new Uint8Array(nonce.length + ciphertext.length);
+    result.set(nonce, 0);
+    result.set(ciphertext, nonce.length);
+    return result;
+}
+
+function decryptData(combined, key) {
+    const nonce = combined.slice(0, 12);
+    const ciphertext = combined.slice(12);
+    const cipher = new ChaCha20Poly1305(key);
+    const plaintextBytes = cipher.decrypt(nonce, ciphertext);
+    return new TextDecoder().decode(plaintextBytes);
+}
+
+// --- Helper: hex <-> bytes ---
+function hexToBytes(hex) {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return bytes;
+}
+
+function bytesToHex(bytes) {
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 // --- Token management ---
 function getToken() {
@@ -47,9 +111,7 @@ function updateAuthStatus() {
 // --- HTTP helpers ---
 async function apiRequest(endpoint, method = 'GET', body = null, requireAuth = true) {
     const url = API_BASE + endpoint;
-    const headers = {
-        'Content-Type': 'application/json',
-    };
+    const headers = { 'Content-Type': 'application/json' };
     if (requireAuth) {
         const token = getToken();
         if (!token) {
@@ -81,7 +143,7 @@ async function register() {
     const password = passwordInput.value;
     if (!login || !password) return alert('Login and password required');
     try {
-        const result = await apiRequest('/register', 'POST', { login: login, password: password }, false);
+        const result = await apiRequest('/register', 'POST', { login, password }, false);
         authStatus.innerHTML = 'Registered: ' + (result.message || 'success');
     } catch (e) {
         authStatus.innerHTML = 'Register error: ' + e.message;
@@ -93,7 +155,7 @@ async function login() {
     const password = passwordInput.value;
     if (!login || !password) return alert('Login and password required');
     try {
-        const result = await apiRequest('/login', 'POST', { login: login, password: password }, false);
+        const result = await apiRequest('/login', 'POST', { login, password }, false);
         setToken(result.access_token);
         authStatus.innerHTML = 'Logged in as ' + login;
     } catch (e) {
@@ -116,8 +178,18 @@ async function createItem() {
     if (metaRaw) {
         try { metadata = JSON.parse(metaRaw); } catch (_) { metadata = { raw: metaRaw }; }
     }
-    const payload = { type: type, content: content, metadata: metadata };
+
+    if (!content) return alert('Content is required');
+
+    const masterPassword = prompt('Master password for encryption:');
+    if (!masterPassword) return;
+
     try {
+        const key = await deriveKey(masterPassword);
+        const encrypted = encryptData(content, key);
+        const hexContent = bytesToHex(encrypted);
+
+        const payload = { type, content: hexContent, metadata };
         const result = await apiRequest('/items', 'POST', payload);
         itemsOutput.innerHTML = 'Created item: ' + JSON.stringify(result, null, 2);
     } catch (e) {
@@ -128,7 +200,23 @@ async function createItem() {
 async function listItems() {
     try {
         const result = await apiRequest('/items');
-        itemsOutput.innerHTML = JSON.stringify(result, null, 2);
+        if (result.length === 0) {
+            itemsOutput.innerHTML = 'No items found.';
+            return;
+        }
+        let html = '<table style="width:100%; border-collapse: collapse; text-align:left;">';
+        html += '<tr><th>ID</th><th>Type</th><th>Version</th><th>Updated</th></tr>';
+        result.forEach(item => {
+            html += '<tr>';
+            html += '<td>' + item.id + '</td>';
+            html += '<td>' + item.type + '</td>';
+            html += '<td>' + item.version + '</td>';
+            html += '<td>' + item.updated_at.substring(0,19) + '</td>';
+            html += '</tr>';
+        });
+        html += '</table>';
+        html += '<p><em>Use "Get" to view full item with decrypted content.</em></p>';
+        itemsOutput.innerHTML = html;
     } catch (e) {
         itemsOutput.innerHTML = 'List error: ' + e.message;
     }
@@ -137,9 +225,33 @@ async function listItems() {
 async function getItem() {
     const id = itemId.value.trim();
     if (!id) return alert('Enter item id');
+
+    const masterPassword = prompt('Master password for decryption:');
+    if (!masterPassword) return;
+
     try {
-        const result = await apiRequest('/items/' + id);
-        itemsOutput.innerHTML = JSON.stringify(result, null, 2);
+        const key = await deriveKey(masterPassword);
+        const item = await apiRequest('/items/' + id);
+
+        // Decrypt content
+        let decryptedText = '';
+        try {
+            const combined = hexToBytes(item.content);
+            decryptedText = decryptData(combined, key);
+        } catch (e) {
+            decryptedText = '(decryption failed: wrong password or corrupted data)';
+        }
+
+        // Display item with decrypted content
+        let html = '<div style="border:1px solid #45475a; padding:1em; border-radius:4px; margin-top:0.5em;">';
+        html += '<div><strong>ID:</strong> ' + item.id + '</div>';
+        html += '<div><strong>Type:</strong> ' + item.type + '</div>';
+        html += '<div><strong>Version:</strong> ' + item.version + '</div>';
+        html += '<div><strong>Updated:</strong> ' + item.updated_at + '</div>';
+        html += '<div><strong>Metadata:</strong> ' + JSON.stringify(item.metadata || {}) + '</div>';
+        html += '<div><strong>Decrypted content:</strong> <span style="color:#a6e3a1; word-break:break-all;">' + decryptedText + '</span></div>';
+        html += '</div>';
+        itemsOutput.innerHTML = html;
     } catch (e) {
         itemsOutput.innerHTML = 'Get error: ' + e.message;
     }
@@ -148,6 +260,7 @@ async function getItem() {
 async function deleteItem() {
     const id = itemId.value.trim();
     if (!id) return alert('Enter item id');
+    if (!confirm('Delete item ' + id + '?')) return;
     try {
         await apiRequest('/items/' + id, 'DELETE');
         itemsOutput.innerHTML = 'Deleted item ' + id;
