@@ -30,6 +30,7 @@ const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes');
 // --- Helper: derive key using Argon2id (via argon2-browser) ---
 async function deriveKey(masterPassword) {
     // argon2-browser expects password and salt as Uint8Array or string
+    // type: 2 corresponds to Argon2id
     const result = await argon2.hash({
         pass: masterPassword,
         salt: SALT,
@@ -37,7 +38,7 @@ async function deriveKey(masterPassword) {
         mem: 65536,       // 64 MiB in KB (note: argon2-browser uses KB)
         parallelism: 4,
         hashLen: 32,
-        type: argon2.ArgonType.Argon2id,
+        type: 2, // Argon2id
     });
     return result.hash; // Uint8Array(32)
 }
