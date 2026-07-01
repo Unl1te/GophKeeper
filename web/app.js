@@ -25,22 +25,22 @@ import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
 import argon2 from 'argon2-browser';
 
 // --- Constants ---
-// Salt must match the one used in the Python CLI (as a string)
-const SALT = 'gophkeeper_salt_16bytes';
+// Salt must match the one in the Python CLI: "gophkeeper_salt_16bytes"
+const SALT = 'gophkeeper_salt_16bytes';  // string, will be UTF-8 encoded by the library
 
-// --- Helper: derive key using Argon2id (via argon2-browser) ---
+// --- Helper: derive key using Argon2id ---
 async function deriveKey(masterPassword) {
     try {
         const result = await argon2.hash({
             pass: masterPassword,
             salt: SALT,
-            time: 3,          // passes
-            mem: 65536,       // 64 MiB (in KB)
+            time: 3,               // passes
+            mem: 65536,            // 64 MiB (in KB)
             parallelism: 4,
-            hashLen: 32,
-            type: argon2.ArgonType.Argon2id,
+            hashLen: 32,           // 256-bit key
+            type: 2,               // 2 = Argon2id
         });
-        return result.hash; // Uint8Array(32)
+        return result.hash;        // Uint8Array(32)
     } catch (err) {
         console.error('Argon2 error:', err);
         throw new Error('Key derivation failed: ' + err.message);
