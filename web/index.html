@@ -17,13 +17,12 @@
         .error { color: #f38ba8; }
         .success { color: #a6e3a1; }
         h1, h2, h3 { margin: 0.5em 0; }
-        .inline-block { display: inline-block; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🔐 GophKeeper Web Client</h1>
-    <p><em>Same API as CLI – no changes to CLI needed.</em></p>
+    <h1>GophKeeper Web Client</h1>
+    <p><em>Same functionality as CLI – no extra features.</em></p>
 
     <!-- Auth -->
     <div class="section">
@@ -58,20 +57,7 @@
             <button id="listItemsBtn">List</button>
             <button id="deleteItemBtn">Delete</button>
         </div>
-        <div class="flex">
-            <input id="updateId" placeholder="id" style="width:80px;">
-            <input id="updateContent" placeholder="new content">
-            <input id="updateVersion" placeholder="version" style="width:60px;">
-            <button id="updateItemBtn">Update</button>
-        </div>
         <div id="itemsOutput" class="output">No items loaded</div>
-    </div>
-
-    <!-- Sync -->
-    <div class="section">
-        <h2>Sync</h2>
-        <button id="syncBtn">Sync (POST /items/sync)</button>
-        <div id="syncOutput" class="output">Sync result</div>
     </div>
 </div>
 
