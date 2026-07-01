@@ -65,7 +65,7 @@
 <body>
 <div class="container">
   <h1>GophKeeper Web Client</h1>
-  <p><em>Demonstration client – uses PBKDF2 via crypto-js (works over HTTP).</em></p>
+  <p><em>Demo version – uses PBKDF2 (crypto-js) + ChaCha20-Poly1305 (noble/ciphers).</em></p>
 
   <!-- Auth -->
   <div class="section">
@@ -104,14 +104,14 @@
   </div>
 </div>
 
-<!-- Load crypto-js (PBKDF2, no Web Crypto required) -->
+<!-- crypto-js for PBKDF2 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 
-<!-- Importmap for @stablelib/chacha20poly1305 -->
+<!-- Noble ciphers for ChaCha20-Poly1305 -->
 <script type="importmap">
 {
   "imports": {
-    "@stablelib/chacha20poly1305": "https://cdn.jsdelivr.net/npm/@stablelib/chacha20poly1305@1.0.1/+esm"
+    "@noble/ciphers": "https://cdn.jsdelivr.net/npm/@noble/ciphers@1.2.0/+esm"
   }
 }
 </script>

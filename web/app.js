@@ -20,19 +20,18 @@ const itemContent = document.getElementById('itemContent');
 const itemMeta = document.getElementById('itemMeta');
 const itemId = document.getElementById('itemId');
 
-// --- Crypto imports (only ChaCha20-Poly1305 via ESM) ---
-import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
+// --- Crypto imports ---
+import { chacha20poly1305 } from '@noble/ciphers/chacha';
 
-// --- CryptoJS is available globally from script tag ---
+// --- CryptoJS is available globally ---
 
 // --- Constants ---
-const SALT = 'gophkeeper_salt_16bytes'; // string, CryptoJS expects string
+const SALT = 'gophkeeper_salt_16bytes';
 
 // --- Helper: derive key using PBKDF2 via CryptoJS ---
 function deriveKey(masterPassword) {
-    // CryptoJS.PBKDF2 returns a WordArray; we need Uint8Array
     const keyWordArray = CryptoJS.PBKDF2(masterPassword, SALT, {
-        keySize: 256 / 32, // 256 bits = 8 words (32 bytes)
+        keySize: 256 / 32,
         iterations: 100000,
         hasher: CryptoJS.algo.SHA256
     });
@@ -45,12 +44,12 @@ function deriveKey(masterPassword) {
     return keyBytes;
 }
 
-// --- Encryption / Decryption with ChaCha20-Poly1305 ---
+// --- Encryption / Decryption with ChaCha20-Poly1305 using noble/ciphers ---
 function encryptData(plaintext, key) {
     const nonce = crypto.getRandomValues(new Uint8Array(12));
-    const cipher = new ChaCha20Poly1305(key);
+    const cipher = chacha20poly1305(key, nonce);
     const plaintextBytes = new TextEncoder().encode(plaintext);
-    const ciphertext = cipher.encrypt(nonce, plaintextBytes);
+    const ciphertext = cipher.encrypt(plaintextBytes);
     const result = new Uint8Array(nonce.length + ciphertext.length);
     result.set(nonce, 0);
     result.set(ciphertext, nonce.length);
@@ -60,8 +59,8 @@ function encryptData(plaintext, key) {
 function decryptData(combined, key) {
     const nonce = combined.slice(0, 12);
     const ciphertext = combined.slice(12);
-    const cipher = new ChaCha20Poly1305(key);
-    const plaintextBytes = cipher.decrypt(nonce, ciphertext);
+    const cipher = chacha20poly1305(key, nonce);
+    const plaintextBytes = cipher.decrypt(ciphertext);
     return new TextDecoder().decode(plaintextBytes);
 }
 
