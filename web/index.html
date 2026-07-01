@@ -64,8 +64,8 @@
 </head>
 <body>
 <div class="container">
-  <h1>GophKeeper Web Client</h1>
-  <p><em>Demo version – uses PBKDF2 (crypto-js) + ChaCha20-Poly1305 (noble/ciphers).</em></p>
+  <h1>GophKeeper Web Client (API demo)</h1>
+  <p><em>No encryption/decryption in browser – shows raw encrypted data.</em></p>
 
   <!-- Auth -->
   <div class="section">
@@ -90,31 +90,19 @@
         <option value="card">card</option>
         <option value="binary">binary</option>
       </select>
-      <input id="itemContent" placeholder="content" style="flex:1;" />
+      <input id="itemContent" placeholder="content (will be sent as plain text)" style="flex:1;" />
       <input id="itemMeta" placeholder='metadata {"key":"value"}' value='{"note":"demo"}' />
-      <button id="createItemBtn">Create</button>
+      <button id="createItemBtn">Create (unencrypted)</button>
     </div>
     <div class="flex">
       <input id="itemId" placeholder="item id" style="width:80px;" />
-      <button id="getItemBtn">Get (decrypt)</button>
+      <button id="getItemBtn">Get (raw)</button>
       <button id="listItemsBtn">List</button>
       <button id="deleteItemBtn">Delete</button>
     </div>
     <div id="itemsOutput" class="output">No items loaded</div>
   </div>
 </div>
-
-<!-- crypto-js for PBKDF2 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
-
-<!-- Noble ciphers for ChaCha20-Poly1305 -->
-<script type="importmap">
-{
-  "imports": {
-    "@noble/ciphers": "https://cdn.jsdelivr.net/npm/@noble/ciphers@1.2.0/+esm"
-  }
-}
-</script>
 
 <script type="module" src="app.js"></script>
 </body>

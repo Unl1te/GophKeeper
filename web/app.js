@@ -20,63 +20,6 @@ const itemContent = document.getElementById('itemContent');
 const itemMeta = document.getElementById('itemMeta');
 const itemId = document.getElementById('itemId');
 
-// --- Crypto imports ---
-import { chacha20poly1305 } from '@noble/ciphers/chacha';
-
-// --- CryptoJS is available globally ---
-
-// --- Constants ---
-const SALT = 'gophkeeper_salt_16bytes';
-
-// --- Helper: derive key using PBKDF2 via CryptoJS ---
-function deriveKey(masterPassword) {
-    const keyWordArray = CryptoJS.PBKDF2(masterPassword, SALT, {
-        keySize: 256 / 32,
-        iterations: 100000,
-        hasher: CryptoJS.algo.SHA256
-    });
-    // Convert WordArray to Uint8Array
-    const keyBytes = new Uint8Array(keyWordArray.sigBytes);
-    const words = keyWordArray.words;
-    for (let i = 0; i < keyWordArray.sigBytes; i++) {
-        keyBytes[i] = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
-    }
-    return keyBytes;
-}
-
-// --- Encryption / Decryption with ChaCha20-Poly1305 using noble/ciphers ---
-function encryptData(plaintext, key) {
-    const nonce = crypto.getRandomValues(new Uint8Array(12));
-    const cipher = chacha20poly1305(key, nonce);
-    const plaintextBytes = new TextEncoder().encode(plaintext);
-    const ciphertext = cipher.encrypt(plaintextBytes);
-    const result = new Uint8Array(nonce.length + ciphertext.length);
-    result.set(nonce, 0);
-    result.set(ciphertext, nonce.length);
-    return result;
-}
-
-function decryptData(combined, key) {
-    const nonce = combined.slice(0, 12);
-    const ciphertext = combined.slice(12);
-    const cipher = chacha20poly1305(key, nonce);
-    const plaintextBytes = cipher.decrypt(ciphertext);
-    return new TextDecoder().decode(plaintextBytes);
-}
-
-// --- Helper: hex <-> bytes ---
-function hexToBytes(hex) {
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < bytes.length; i++) {
-        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-    }
-    return bytes;
-}
-
-function bytesToHex(bytes) {
-    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 // --- Token management ---
 function getToken() {
     return localStorage.getItem('gophkeeper_token');
@@ -161,7 +104,7 @@ function logout() {
     itemsOutput.innerHTML = 'No items loaded';
 }
 
-// --- Items ---
+// --- Items (no encryption, just raw content) ---
 async function createItem() {
     const type = itemType.value;
     const content = itemContent.value;
@@ -173,15 +116,8 @@ async function createItem() {
 
     if (!content) return alert('Content is required');
 
-    const masterPassword = prompt('Master password for encryption:');
-    if (!masterPassword) return;
-
+    const payload = { type, content, metadata };
     try {
-        const key = deriveKey(masterPassword);
-        const encrypted = encryptData(content, key);
-        const hexContent = bytesToHex(encrypted);
-
-        const payload = { type, content: hexContent, metadata };
         const result = await apiRequest('/items', 'POST', payload);
         itemsOutput.innerHTML = 'Created item: ' + JSON.stringify(result, null, 2);
     } catch (e) {
@@ -207,7 +143,7 @@ async function listItems() {
             html += '</tr>';
         });
         html += '</table>';
-        html += '<p><em>Use "Get" to view full item with decrypted content.</em></p>';
+        html += '<p><em>Use "Get" to view full item (including encrypted content in hex).</em></p>';
         itemsOutput.innerHTML = html;
     } catch (e) {
         itemsOutput.innerHTML = 'List error: ' + e.message;
@@ -218,30 +154,10 @@ async function getItem() {
     const id = itemId.value.trim();
     if (!id) return alert('Enter item id');
 
-    const masterPassword = prompt('Master password for decryption:');
-    if (!masterPassword) return;
-
     try {
-        const key = deriveKey(masterPassword);
         const item = await apiRequest('/items/' + id);
-
-        let decryptedText = '';
-        try {
-            const combined = hexToBytes(item.content);
-            decryptedText = decryptData(combined, key);
-        } catch (e) {
-            decryptedText = '(decryption failed: wrong password or corrupted data)';
-        }
-
-        let html = '<div style="border:1px solid #45475a; padding:1em; border-radius:4px; margin-top:0.5em;">';
-        html += '<div><strong>ID:</strong> ' + item.id + '</div>';
-        html += '<div><strong>Type:</strong> ' + item.type + '</div>';
-        html += '<div><strong>Version:</strong> ' + item.version + '</div>';
-        html += '<div><strong>Updated:</strong> ' + item.updated_at + '</div>';
-        html += '<div><strong>Metadata:</strong> ' + JSON.stringify(item.metadata || {}) + '</div>';
-        html += '<div><strong>Decrypted content:</strong> <span style="color:#a6e3a1; word-break:break-all;">' + decryptedText + '</span></div>';
-        html += '</div>';
-        itemsOutput.innerHTML = html;
+        // Show raw item as JSON
+        itemsOutput.innerHTML = JSON.stringify(item, null, 2);
     } catch (e) {
         itemsOutput.innerHTML = 'Get error: ' + e.message;
     }
