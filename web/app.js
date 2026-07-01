@@ -20,25 +20,26 @@ const itemContent = document.getElementById('itemContent');
 const itemMeta = document.getElementById('itemMeta');
 const itemId = document.getElementById('itemId');
 
-// --- Crypto imports (CDN via importmap) ---
-import argon2id from 'argon2id';
+// --- Crypto imports (CDN) ---
 import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
+import * as argon2 from 'argon2-browser';
 
 // --- Constants ---
-const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes'); // must match CLI
+const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes');
 
-// --- Helper: derive key using Argon2id (WASM) ---
+// --- Helper: derive key using Argon2id (via argon2-browser) ---
 async function deriveKey(masterPassword) {
-    const passwordBytes = new TextEncoder().encode(masterPassword);
-    const hash = await argon2id({
-        password: passwordBytes,
+    // argon2-browser expects password and salt as Uint8Array or string
+    const result = await argon2.hash({
+        pass: masterPassword,
         salt: SALT,
+        time: 3,          // passes
+        mem: 65536,       // 64 MiB in KB (note: argon2-browser uses KB)
         parallelism: 4,
-        passes: 3,
-        memorySize: 65536, // 64 MiB
-        hashLen: 32,       // 256-bit key
+        hashLen: 32,
+        type: argon2.ArgonType.Argon2id,
     });
-    return hash; // Uint8Array(32)
+    return result.hash; // Uint8Array(32)
 }
 
 // --- Encryption / Decryption with ChaCha20-Poly1305 ---
