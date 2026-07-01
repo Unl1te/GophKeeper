@@ -21,30 +21,32 @@ const itemMeta = document.getElementById('itemMeta');
 const itemId = document.getElementById('itemId');
 
 // --- Crypto imports (only ChaCha20-Poly1305 via ESM) ---
-import { ChaCha20Poly1305 } from 'https://cdn.jsdelivr.net/npm/@stablelib/chacha20poly1305@1.0.1/+esm';
+import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
 
 // --- Constants ---
-// Salt must match Python CLI: b"gophkeeper_salt_16bytes"
 const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes');
 
-// --- Helper: derive key using Argon2id (via global argon2) ---
+// --- Helper: derive key using PBKDF2 (no external dependencies) ---
 async function deriveKey(masterPassword) {
-    try {
-        // The global 'argon2' object is available from the script tag.
-        const result = await argon2.hash({
-            pass: masterPassword,
-            salt: SALT,          // Uint8Array
-            time: 3,
-            mem: 65536,
-            parallelism: 4,
-            hashLen: 32,
-            type: 2,             // Argon2id
-        });
-        return result.hash;      // Uint8Array(32)
-    } catch (err) {
-        console.error('Argon2 error:', err);
-        throw new Error('Key derivation failed: ' + err.message);
-    }
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(masterPassword),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits']
+    );
+    const derivedBits = await crypto.subtle.deriveBits(
+        {
+            name: 'PBKDF2',
+            salt: SALT,
+            iterations: 100000,
+            hash: 'SHA-256'
+        },
+        keyMaterial,
+        256 // 256 bits = 32 bytes
+    );
+    return new Uint8Array(derivedBits);
 }
 
 // --- Encryption / Decryption with ChaCha20-Poly1305 ---

@@ -65,7 +65,7 @@
 <body>
 <div class="container">
   <h1>GophKeeper Web Client</h1>
-  <p><em>Same functionality as CLI – encryption/decryption in the browser.</em></p>
+  <p><em>Demonstration client – uses PBKDF2 for encryption (not compatible with CLI Argon2id).</em></p>
 
   <!-- Auth -->
   <div class="section">
@@ -104,10 +104,15 @@
   </div>
 </div>
 
-<!-- Load argon2-browser from local lib folder -->
-<script src="/web/lib/argon2.min.js"></script>
+<!-- Only one importmap for @stablelib/chacha20poly1305 -->
+<script type="importmap">
+{
+  "imports": {
+    "@stablelib/chacha20poly1305": "https://cdn.jsdelivr.net/npm/@stablelib/chacha20poly1305@1.0.1/+esm"
+  }
+}
+</script>
 
-<!-- Our main module -->
 <script type="module" src="app.js"></script>
 </body>
 </html>
