@@ -25,8 +25,9 @@ import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
 import argon2 from 'argon2-browser';
 
 // --- Constants ---
-// Salt must match the one in the Python CLI: "gophkeeper_salt_16bytes"
-const SALT = 'gophkeeper_salt_16bytes';  // string, will be UTF-8 encoded by the library
+// Salt must match the one in the Python CLI: b"gophkeeper_salt_16bytes"
+// We pass it as Uint8Array to avoid base64 encoding issues.
+const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes');
 
 // --- Helper: derive key using Argon2id ---
 async function deriveKey(masterPassword) {
