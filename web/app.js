@@ -23,30 +23,26 @@ const itemId = document.getElementById('itemId');
 // --- Crypto imports (only ChaCha20-Poly1305 via ESM) ---
 import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
 
-// --- Constants ---
-const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes');
+// --- CryptoJS is available globally from script tag ---
 
-// --- Helper: derive key using PBKDF2 (no external dependencies) ---
-async function deriveKey(masterPassword) {
-    const enc = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        enc.encode(masterPassword),
-        { name: 'PBKDF2' },
-        false,
-        ['deriveBits']
-    );
-    const derivedBits = await crypto.subtle.deriveBits(
-        {
-            name: 'PBKDF2',
-            salt: SALT,
-            iterations: 100000,
-            hash: 'SHA-256'
-        },
-        keyMaterial,
-        256 // 256 bits = 32 bytes
-    );
-    return new Uint8Array(derivedBits);
+// --- Constants ---
+const SALT = 'gophkeeper_salt_16bytes'; // string, CryptoJS expects string
+
+// --- Helper: derive key using PBKDF2 via CryptoJS ---
+function deriveKey(masterPassword) {
+    // CryptoJS.PBKDF2 returns a WordArray; we need Uint8Array
+    const keyWordArray = CryptoJS.PBKDF2(masterPassword, SALT, {
+        keySize: 256 / 32, // 256 bits = 8 words (32 bytes)
+        iterations: 100000,
+        hasher: CryptoJS.algo.SHA256
+    });
+    // Convert WordArray to Uint8Array
+    const keyBytes = new Uint8Array(keyWordArray.sigBytes);
+    const words = keyWordArray.words;
+    for (let i = 0; i < keyWordArray.sigBytes; i++) {
+        keyBytes[i] = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+    }
+    return keyBytes;
 }
 
 // --- Encryption / Decryption with ChaCha20-Poly1305 ---
@@ -182,7 +178,7 @@ async function createItem() {
     if (!masterPassword) return;
 
     try {
-        const key = await deriveKey(masterPassword);
+        const key = deriveKey(masterPassword);
         const encrypted = encryptData(content, key);
         const hexContent = bytesToHex(encrypted);
 
@@ -227,7 +223,7 @@ async function getItem() {
     if (!masterPassword) return;
 
     try {
-        const key = await deriveKey(masterPassword);
+        const key = deriveKey(masterPassword);
         const item = await apiRequest('/items/' + id);
 
         let decryptedText = '';
