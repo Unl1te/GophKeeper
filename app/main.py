@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from .api.routes import health_router, items_router, login_router, register_router
 
@@ -24,6 +26,12 @@ app.include_router(health_router, prefix="")
 app.include_router(register_router, prefix="")
 app.include_router(login_router, prefix="")
 app.include_router(items_router, prefix="")
+
+web_dir = os.path.join(os.path.dirname(__file__), "..", "web")
+if os.path.isdir(web_dir):
+    app.mount("/web", StaticFiles(directory=web_dir, html=True), name="web")
+else:
+    pass
 
 
 @app.get("/")
