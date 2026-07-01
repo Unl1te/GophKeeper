@@ -20,26 +20,29 @@ const itemContent = document.getElementById('itemContent');
 const itemMeta = document.getElementById('itemMeta');
 const itemId = document.getElementById('itemId');
 
-// --- Crypto imports (CDN) ---
-import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
-import { argon2id } from '@phc/argon2';
+// --- Crypto imports (only ChaCha20-Poly1305 via ESM) ---
+import { ChaCha20Poly1305 } from 'https://cdn.jsdelivr.net/npm/@stablelib/chacha20poly1305@1.0.1/+esm';
 
 // --- Constants ---
-const SALT = 'gophkeeper_salt_16bytes';  // must match CLI (as string)
+// Salt must match the one in Python CLI: b"gophkeeper_salt_16bytes"
+// We'll use Uint8Array to avoid base64 issues.
+const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes');
 
-// --- Helper: derive key using Argon2id ---
+// --- Helper: derive key using Argon2id (via global argon2) ---
 async function deriveKey(masterPassword) {
     try {
-        const hash = await argon2id({
-            password: masterPassword,
-            salt: SALT,
+        // The global 'argon2' object is available from the script tag.
+        // It accepts either string or Uint8Array for salt.
+        const result = await argon2.hash({
+            pass: masterPassword,
+            salt: SALT,          // Uint8Array
+            time: 3,
+            mem: 65536,
             parallelism: 4,
-            passes: 3,
-            memorySize: 65536, // 64 MiB (in KB)
-            hashLength: 32,    // 256-bit key
+            hashLen: 32,
+            type: 2,             // Argon2id
         });
-        // hash is a Uint8Array
-        return hash;
+        return result.hash;      // Uint8Array(32)
     } catch (err) {
         console.error('Argon2 error:', err);
         throw new Error('Key derivation failed: ' + err.message);

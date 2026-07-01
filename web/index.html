@@ -104,16 +104,10 @@
   </div>
 </div>
 
-<!-- Import map for CDN modules (using jsdelivr +esm) -->
-<script type="importmap">
-{
-  "imports": {
-    "@stablelib/chacha20poly1305": "https://cdn.jsdelivr.net/npm/@stablelib/chacha20poly1305@1.0.1/+esm",
-    "@phc/argon2": "https://cdn.jsdelivr.net/npm/@phc/argon2@1.1.2/+esm"
-  }
-}
-</script>
+<!-- Load argon2-browser as a classic script (global object) -->
+<script src="https://cdn.jsdelivr.net/npm/argon2-browser@1.18.0/dist/argon2.min.js"></script>
 
+<!-- Our main module (will use the global argon2) -->
 <script type="module" src="app.js"></script>
 </body>
 </html>
