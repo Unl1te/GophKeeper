@@ -24,15 +24,13 @@ const itemId = document.getElementById('itemId');
 import { ChaCha20Poly1305 } from 'https://cdn.jsdelivr.net/npm/@stablelib/chacha20poly1305@1.0.1/+esm';
 
 // --- Constants ---
-// Salt must match the one in Python CLI: b"gophkeeper_salt_16bytes"
-// We'll use Uint8Array to avoid base64 issues.
+// Salt must match Python CLI: b"gophkeeper_salt_16bytes"
 const SALT = new TextEncoder().encode('gophkeeper_salt_16bytes');
 
 // --- Helper: derive key using Argon2id (via global argon2) ---
 async function deriveKey(masterPassword) {
     try {
         // The global 'argon2' object is available from the script tag.
-        // It accepts either string or Uint8Array for salt.
         const result = await argon2.hash({
             pass: masterPassword,
             salt: SALT,          // Uint8Array
