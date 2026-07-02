@@ -9,11 +9,13 @@ import requests
 from crypto_interface import derive_key, encrypt_data, decrypt_data
 from cli_cache import LocalCache
 
-SERVER_URL = "http://localhost"
-CONFIG_DIR = os.path.expanduser("~/.gophkeeper")
+SERVER_URL = os.environ.get("GOPHKEEPER_SERVER", "http://localhost")
+# Config dir holds the token and the local cache. Override with GOPHKEEPER_HOME
+# to run several independent clients side by side (e.g. the two-client demo).
+CONFIG_DIR = os.environ.get("GOPHKEEPER_HOME") or os.path.expanduser("~/.gophkeeper")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
-cache = LocalCache()
+cache = LocalCache(path=os.path.join(CONFIG_DIR, "cache.json"))
 
 
 # Token management
