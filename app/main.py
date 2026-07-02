@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 
 from .api.routes import health_router, items_router, login_router, register_router
+from .middleware import RequestLoggingMiddleware
 
 app = FastAPI(
     title="GophKeeper API",
@@ -21,6 +22,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Log every request (method, path, status, duration).
+app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(health_router, prefix="")
 app.include_router(register_router, prefix="")
