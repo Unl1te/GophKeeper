@@ -99,38 +99,3 @@ async def delete_item(db: AsyncSession, item_id: int, user_id: int) -> None:
     item.deleted = True
     item.updated_at = datetime.now(timezone.utc)
     await db.commit()
-
-async def get_items_by_user_with_versions(db: AsyncSession, user_id: int) -> List[Item]:
-    """Return all non-deleted items with full data including version."""
-    result = await db.execute(
-        select(Item)
-        .where(Item.user_id == user_id, Item.deleted == False)
-        .order_by(Item.id)
-    )
-    return list(result.scalars().all())
-
-
-async def get_items_versions(db: AsyncSession, user_id: int) -> List[Item]:
-    """Return lightweight list (id, version, updated_at) for all non-deleted user items."""
-    result = await db.execute(
-        select(Item)
-        .where(Item.user_id == user_id, Item.deleted == False)
-        .order_by(Item.id)
-    )
-    return list(result.scalars().all())
-
-
-async def get_items_changed_since(
-    db: AsyncSession, user_id: int, since_version: int
-) -> List[Item]:
-    """Return non-deleted items whose version is greater than since_version."""
-    result = await db.execute(
-        select(Item)
-        .where(
-            Item.user_id == user_id,
-            Item.deleted == False,
-            Item.version > since_version,
-        )
-        .order_by(Item.id)
-    )
-    return list(result.scalars().all())
