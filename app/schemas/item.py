@@ -23,8 +23,16 @@ class ItemResponse(BaseModel):
     type: DataType
     version: int
     updated_at: datetime
-    metadata: Optional[Dict[str, Any]] = None  # stub
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class ItemDetailResponse(ItemResponse):
     content: bytes
+
+
+class ItemVersionResponse(BaseModel):
+    """Lightweight response for /items/versions — no content, no metadata."""
+    id: int
+    version: int
+    updated_at: datetime
+    

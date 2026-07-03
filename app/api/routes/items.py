@@ -13,18 +13,19 @@ from app.schemas.item import (
     ItemDetailResponse,
     ItemResponse,
     ItemUpdateRequest,
+    ItemVersionResponse,
 )
 
 router = APIRouter(prefix="/items", tags=["Items"])
 
 
-# ---- Sync schemas (embedded) ----
+# ---- Sync schemas ----
 class SyncRequest(BaseModel):
-    changes: List[Dict[str, Any]]
+    changes: List[Dict[str, Any]]  # list of {id, version} from client
 
 
 class SyncResponse(BaseModel):
-    updates: List[Dict[str, Any]]
+    updates: List[Dict[str, Any]]  # items whose version on server > client version
 
 
 @router.post(
@@ -53,13 +54,34 @@ async def create_item(
     )
 
 
+@router.get("/versions", response_model=List[ItemVersionResponse])
+async def get_item_versions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return id, version, updated_at for all non-deleted user items.
+    Used by clients to quickly detect what has changed without downloading content.
+    """
+    items = await item_repository.get_items_versions(db=db, user_id=current_user.id)
+    return [
+        ItemVersionResponse(
+            id=item.id,
+            version=item.version,
+            updated_at=item.updated_at,
+        )
+        for item in items
+    ]
+
+
 @router.get("/", response_model=List[ItemResponse])
 async def list_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all non-deleted items for the authenticated user (no content)."""
-    items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
+    items = await item_repository.get_items_by_user_with_versions(
+        db=db, user_id=current_user.id
+    )
     return [
         ItemResponse(
             id=item.id,
@@ -135,7 +157,7 @@ async def delete_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Soft-delete an item (sets deleted=True, data is not removed from DB)."""
+    """Soft-delete an item (sets deleted=True, data stays in DB)."""
     try:
         await item_repository.delete_item(
             db=db, item_id=item_id, user_id=current_user.id
@@ -150,16 +172,35 @@ async def sync_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Batch sync: returns all non-deleted items for the user."""
-    items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
-    updates = [
-        {
-            "id": item.id,
-            "version": item.version,
-            "updated_at": item.updated_at.isoformat(),
-            "content": item.content.hex(),
-            "metadata": item.metadata_,
-        }
-        for item in items
-    ]
+    """Incremental sync: client sends list of {id, version}.
+    Server returns only items whose version is newer than what the client has.
+    New items (not in client list) are also included.
+    """
+    # Build a map of client-known versions: {item_id -> version}
+    client_versions: Dict[int, int] = {
+        c["id"]: c["version"]
+        for c in sync_data.changes
+        if "id" in c and "version" in c
+    }
+
+    # Get all user items
+    all_items = await item_repository.get_items_by_user_with_versions(
+        db=db, user_id=current_user.id
+    )
+
+    # Return only items that are new or updated compared to client state
+    updates = []
+    for item in all_items:
+        client_ver = client_versions.get(item.id)
+        if client_ver is None or item.version > client_ver:
+            updates.append(
+                {
+                    "id": item.id,
+                    "version": item.version,
+                    "updated_at": item.updated_at.isoformat(),
+                    "content": item.content.hex(),
+                    "metadata": item.metadata_,
+                }
+            )
+
     return SyncResponse(updates=updates)
