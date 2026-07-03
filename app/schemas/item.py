@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -30,9 +30,23 @@ class ItemDetailResponse(ItemResponse):
     content: bytes
 
 
-class ItemVersionResponse(BaseModel):
-    """Lightweight response for /items/versions — no content, no metadata."""
+# ---- Sync schemas ----
+class SyncItemVersion(BaseModel):
+    id: int
+    version: int
+
+
+class SyncRequest(BaseModel):
+    items: List[SyncItemVersion]
+
+
+class SyncUpdateItem(BaseModel):
     id: int
     version: int
     updated_at: datetime
-    
+    content: bytes
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class SyncResponse(BaseModel):
+    updates: List[SyncUpdateItem]

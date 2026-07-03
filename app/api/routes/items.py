@@ -1,7 +1,4 @@
-from typing import Any, Dict, List
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -13,21 +10,15 @@ from app.schemas.item import (
     ItemDetailResponse,
     ItemResponse,
     ItemUpdateRequest,
-    ItemVersionResponse,
+    SyncRequest,
+    SyncResponse,
+    SyncUpdateItem,
 )
 
 router = APIRouter(prefix="/items", tags=["Items"])
 
 
-# ---- Sync schemas ----
-class SyncRequest(BaseModel):
-    changes: List[Dict[str, Any]]  # list of {id, version} from client
-
-
-class SyncResponse(BaseModel):
-    updates: List[Dict[str, Any]]  # items whose version on server > client version
-
-
+# ---- CREATE ----
 @router.post(
     "/", response_model=ItemDetailResponse, status_code=status.HTTP_201_CREATED
 )
@@ -54,34 +45,14 @@ async def create_item(
     )
 
 
-@router.get("/versions", response_model=List[ItemVersionResponse])
-async def get_item_versions(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Return id, version, updated_at for all non-deleted user items.
-    Used by clients to quickly detect what has changed without downloading content.
-    """
-    items = await item_repository.get_items_versions(db=db, user_id=current_user.id)
-    return [
-        ItemVersionResponse(
-            id=item.id,
-            version=item.version,
-            updated_at=item.updated_at,
-        )
-        for item in items
-    ]
-
-
-@router.get("/", response_model=List[ItemResponse])
+# ---- LIST (with versions) ----
+@router.get("/", response_model=list[ItemResponse])
 async def list_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all non-deleted items for the authenticated user (no content)."""
-    items = await item_repository.get_items_by_user_with_versions(
-        db=db, user_id=current_user.id
-    )
+    items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
     return [
         ItemResponse(
             id=item.id,
@@ -94,6 +65,7 @@ async def list_items(
     ]
 
 
+# ---- GET ONE ----
 @router.get("/{item_id}", response_model=ItemDetailResponse)
 async def get_item(
     item_id: int,
@@ -119,6 +91,7 @@ async def get_item(
     )
 
 
+# ---- UPDATE (with version check) ----
 @router.put("/{item_id}", response_model=ItemDetailResponse)
 async def update_item(
     item_id: int,
@@ -126,7 +99,10 @@ async def update_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update an existing item. Returns 409 on version conflict."""
+    """
+    Update an existing item.
+    Returns 409 Conflict if the client version is stale.
+    """
     try:
         item = await item_repository.update_item(
             db=db,
@@ -139,7 +115,22 @@ async def update_item(
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        # Conflict: client version does not match server version.
+        # We can optionally include the current version in the response body.
+        # We'll fetch the current item to get its version.
+        current_item = await item_repository.get_item_by_id(
+            db, item_id, current_user.id
+        )
+        if current_item is None:
+            # Should not happen if LookupError was not raised, but just in case.
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(e),
+                "current_version": current_item.version,
+            },
+        )
 
     return ItemDetailResponse(
         id=item.id,
@@ -151,13 +142,14 @@ async def update_item(
     )
 
 
+# ---- DELETE (soft delete) ----
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_item(
     item_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Soft-delete an item (sets deleted=True, data stays in DB)."""
+    """Soft-delete an item (sets deleted=True, data is not removed from DB)."""
     try:
         await item_repository.delete_item(
             db=db, item_id=item_id, user_id=current_user.id
@@ -166,41 +158,78 @@ async def delete_item(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
+# ---- VERSIONS (lightweight) ----
+@router.get("/versions", response_model=list[dict])
+async def get_items_versions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Lightweight endpoint that returns only id, version, updated_at for all user items.
+    Used by the CLI to check for changes without downloading full data.
+    """
+    items = await item_repository.get_items_versions(db=db, user_id=current_user.id)
+    return [
+        {
+            "id": item.id,
+            "version": item.version,
+            "updated_at": item.updated_at,
+        }
+        for item in items
+    ]
+
+
+# ---- INCREMENTAL SYNC ----
 @router.post("/sync", response_model=SyncResponse)
 async def sync_items(
     sync_data: SyncRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Incremental sync: client sends list of {id, version}.
-    Server returns only items whose version is newer than what the client has.
-    New items (not in client list) are also included.
     """
-    # Build a map of client-known versions: {item_id -> version}
-    client_versions: Dict[int, int] = {
-        c["id"]: c["version"]
-        for c in sync_data.changes
-        if "id" in c and "version" in c
-    }
+    Incremental sync endpoint.
+    Client sends a list of {id, version} it currently holds.
+    Server returns only items where the server version is greater than the client version.
+    """
+    # If the client sends no items, we treat it as "send me everything" (since_version = 0).
+    if not sync_data.items:
+        # Return all items
+        items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
+        updates = [
+            SyncUpdateItem(
+                id=item.id,
+                version=item.version,
+                updated_at=item.updated_at,
+                content=item.content,
+                metadata=item.metadata_,
+            )
+            for item in items
+        ]
+        return SyncResponse(updates=updates)
 
-    # Get all user items
-    all_items = await item_repository.get_items_by_user_with_versions(
-        db=db, user_id=current_user.id
-    )
+    # For each item, we need to check if server version > client version.
+    # We can use a set of ids to reduce the number of queries.
+    # But we'll do a single query using a filter on version per item.
+    # However, get_items_changed_since returns all items with version > since_version,
+    # but that's global, not per item. That method is not suitable here.
+    # Instead, we'll fetch all items for the user and filter in Python.
+    # For a small number of items (<1000), this is fine.
+    all_items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
+    # Build a dict from client items
+    client_versions = {item.id: item.version for item in sync_data.items}
 
-    # Return only items that are new or updated compared to client state
     updates = []
     for item in all_items:
-        client_ver = client_versions.get(item.id)
-        if client_ver is None or item.version > client_ver:
+        client_version = client_versions.get(item.id, 0)
+        if item.version > client_version:
             updates.append(
-                {
-                    "id": item.id,
-                    "version": item.version,
-                    "updated_at": item.updated_at.isoformat(),
-                    "content": item.content.hex(),
-                    "metadata": item.metadata_,
-                }
+                SyncUpdateItem(
+                    id=item.id,
+                    version=item.version,
+                    updated_at=item.updated_at,
+                    content=item.content,
+                    metadata=item.metadata_,
+                )
             )
 
     return SyncResponse(updates=updates)
