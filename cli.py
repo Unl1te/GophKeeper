@@ -57,6 +57,79 @@ def print_success(message: str):
     print(f"Success: {message}")
 
 
+# Background check: fetch /items/versions and refresh cache if needed
+def _fetch_versions() -> list | None:
+    """Fetch /items/versions from server. Returns list of {id, version, updated_at} or None on failure."""
+    try:
+        response = requests.get(f"{SERVER_URL}/items/versions", headers=get_headers())
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 401:
+            print_error("Not authenticated. Please login first.")
+            return None
+        else:
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
+            return None
+    except requests.exceptions.ConnectionError:
+        return None  # offline
+
+
+def _refresh_cache_from_server():
+    """Pull full item list from /items and sync the cache."""
+    try:
+        response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
+        if response.status_code == 200:
+            cache.sync(response.json())
+            print("Cache updated.")
+            return True
+        elif response.status_code == 401:
+            print_error("Not authenticated. Please login first.")
+            return False
+        else:
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
+            return False
+    except requests.exceptions.ConnectionError:
+        print_error("Could not connect to server")
+        return False
+
+
+def _check_and_update_cache_if_needed():
+    """
+    Check server versions via /items/versions.
+    If any version differs from cache, update cache.
+    Returns True if cache was updated, False otherwise.
+    """
+    versions = _fetch_versions()
+    if versions is None:
+        # Server unreachable or error – no update
+        return False
+
+    # Compare with cache
+    cached_items = cache.list_items()
+    cached_versions = {item["id"]: item["version"] for item in cached_items}
+
+    need_update = False
+    for v in versions:
+        sid = v["id"]
+        sver = v["version"]
+        cver = cached_versions.get(sid)
+        if cver is None or cver != sver:
+            need_update = True
+            break
+    # Also check if server has fewer items (deletions)
+    if len(versions) != len(cached_items):
+        need_update = True
+
+    if need_update:
+        print("Updating cache...")
+        return _refresh_cache_from_server()
+    return False
+
+
 # Existing commands
 def health():
     try:
@@ -113,6 +186,7 @@ def login():
         print("Error: could not connect to server")
 
 
+# Item commands
 def add_item():
     parser = argparse.ArgumentParser(prog="cli.py add", add_help=False)
     parser.add_argument(
@@ -211,34 +285,29 @@ def list_items():
     refresh = "--refresh" in sys.argv[2:]
     cached = cache.list_items()
 
-    # Check if cache is stale (items missing type or version)
-    stale = False
-    if cached and not refresh:
-        stale = any(
-            item.get("type") is None or item.get("version") is None for item in cached
-        )
-
-    # If refresh requested, cache empty, or stale, go to server
-    if refresh or not cached or stale:
-        try:
-            response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
-            if response.status_code == 200:
-                cache.sync(response.json())
-                cached = cache.list_items()
-            elif response.status_code == 401:
-                print_error("Not authenticated. Please login first.")
-                return
-            else:
-                print_error(
-                    f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
-                )
-                return
-        except requests.exceptions.ConnectionError:
-            # If server is unreachable, fall back to cache (if any)
+    # If --refresh is given, force fetch from server
+    if refresh:
+        if _refresh_cache_from_server():
+            cached = cache.list_items()
+        else:
+            # If refresh failed, still try to show what we have
             if not cached:
-                print_error("Could not connect to server")
+                print_error("Could not refresh and no cached items")
                 return
             print("(offline — showing cached items)")
+
+    # Otherwise, do background check if cache is not empty
+    elif cached:
+        # Background check: fetch /items/versions and update if needed
+        _check_and_update_cache_if_needed()
+        cached = cache.list_items()
+    else:
+        # Cache empty – fetch from server
+        if _refresh_cache_from_server():
+            cached = cache.list_items()
+        else:
+            print_error("Could not fetch items")
+            return
 
     if not cached:
         print("No items found")
@@ -280,6 +349,16 @@ def get_item():
             print_error(
                 f"Item {item_id} not found on server (removed from local cache)"
             )
+        elif response.status_code == 409:
+            # Conflict: server version is newer – refresh cache and retry
+            print_error(
+                f"Conflict detected for item {item_id}. Refreshing cache and retrying..."
+            )
+            if _refresh_cache_from_server():
+                # After refresh, try again automatically
+                get_item()  # recursive retry
+            else:
+                print_error("Could not refresh cache. Please try again later.")
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
@@ -311,6 +390,16 @@ def delete_item():
         elif response.status_code == 404:
             cache.remove(item_id)
             print_error(f"Item {item_id} not found (removed from local cache)")
+        elif response.status_code == 409:
+            # Conflict: server version is newer – refresh cache and retry deletion
+            print_error(
+                f"Conflict detected for item {item_id}. Refreshing cache and retrying delete..."
+            )
+            if _refresh_cache_from_server():
+                # After refresh, retry deletion (call recursively)
+                delete_item()
+            else:
+                print_error("Could not refresh cache. Please try again later.")
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
@@ -321,6 +410,7 @@ def delete_item():
         print_error("Could not connect to server")
 
 
+# Stubs and help
 def history():
     print("Not implemented")
 
