@@ -105,7 +105,9 @@ def _check_and_update_cache_if_needed():
     """
     versions = _fetch_versions()
     if versions is None:
-        # Server unreachable or error – no update
+        # Server unreachable – show cached data if available
+        if cache.list_items():
+            print("(offline — showing cached items)")
         return False
 
     # Compare with cache

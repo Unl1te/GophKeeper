@@ -139,7 +139,10 @@ def test_update_item_conflict_409(mock_get_by_id, mock_update, override_auth):
     response = client.put("/items/42", json=payload)
 
     assert response.status_code == 409
-    assert "Version conflict" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert "Version conflict" in detail["message"]
+    assert "current_version" in detail
+    assert detail["current_version"] == 2
 
 
 @patch("app.repositories.item_repository.delete_item")
