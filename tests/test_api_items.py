@@ -44,7 +44,6 @@ def test_create_item_success(mock_create, override_auth):
     )
     mock_create.return_value = mock_item
 
-    # "encrypted_data" is passed as a Base64-encoded string
     payload = {"type": "text", "content": "ZW5jcnlwdGVkX2RhdGE=", "metadata": {}}
     response = client.post("/items/", json=payload)
 
@@ -109,7 +108,7 @@ def test_update_item_success(mock_update, override_auth):
     mock_update.return_value = mock_item
 
     payload = {
-        "content": "bmV3X3NlY3JldA==",  # "new_secret" in Base64
+        "content": "bmV3X3NlY3JldA==",
         "version": 1,
         "metadata": {},
     }
@@ -123,9 +122,17 @@ def test_update_item_success(mock_update, override_auth):
 @patch("app.repositories.item_repository.get_item_by_id")
 def test_update_item_conflict_409(mock_get_by_id, mock_update, override_auth):
     """Test update failure due to version conflict."""
-    mock_get_by_id.return_value = None
+    current_item = Item(
+        id=42,
+        user_id=1,
+        type=DataType.text,
+        content=b"old_content",
+        version=2,
+        updated_at=datetime.now(timezone.utc),
+        metadata_={},
+    )
+    mock_get_by_id.return_value = current_item
 
-    # ValueError triggers 409 Conflict in items.py
     mock_update.side_effect = ValueError("Version conflict detected")
 
     payload = {"content": "bmV3X3NlY3JldA==", "version": 1, "metadata": {}}

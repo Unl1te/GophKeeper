@@ -23,9 +23,10 @@ def test_cli_add_item_success(mock_token, mock_getpass, requests_mock, capsys):
     assert "Item created (id: 1, version: 1)" in captured.out
 
 
+@patch("sys.argv", ["cli.py", "list", "--refresh"])
 @patch("cli.load_token", return_value="fake_jwt_token")
 def test_cli_list_items_success(mock_token, requests_mock, capsys):
-    """Test displaying list of items in CLI."""
+    """Test displaying list of items in CLI with --refresh to force update."""
     requests_mock.get(
         "http://localhost/items/versions",
         status_code=200,
@@ -67,7 +68,7 @@ def test_cli_get_item_success(
             "id": 1,
             "type": "text",
             "version": 1,
-            "content": "deadbeef",  # Mocked hex content
+            "content": "deadbeef",
             "updated_at": "2026-06-28T12:00:00.000000",
             "metadata": {"note": "test"},
         },
