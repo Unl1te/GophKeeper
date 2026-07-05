@@ -34,6 +34,7 @@ def test_list_pulls_from_server_and_populates_cache(
     cli, requests_mock, monkeypatch, capsys
 ):
     """Test that list command pulls fresh data from server."""
+    requests_mock.get(f"{SERVER}/items/versions", json=[{"id": 1, "version": 1}])
     requests_mock.get(f"{SERVER}/items", json=[_item(1), _item(2, version=3)])
     monkeypatch.setattr(sys, "argv", ["cli.py", "list"])
 
@@ -47,6 +48,9 @@ def test_list_pulls_from_server_and_populates_cache(
 def test_list_offline_falls_back_to_cache(cli, requests_mock, monkeypatch, capsys):
     """Test that list falls back to cached data when offline."""
     cli.cache.sync([_item(7, type="card")])
+    requests_mock.get(
+        f"{SERVER}/items/versions", exc=requests.exceptions.ConnectionError
+    )
     requests_mock.get(f"{SERVER}/items", exc=requests.exceptions.ConnectionError)
     monkeypatch.setattr(sys, "argv", ["cli.py", "list"])
 

@@ -27,6 +27,11 @@ def test_cli_add_item_success(mock_token, mock_getpass, requests_mock, capsys):
 def test_cli_list_items_success(mock_token, requests_mock, capsys):
     """Test displaying list of items in CLI."""
     requests_mock.get(
+        "http://localhost/items/versions",
+        status_code=200,
+        json=[{"id": 1, "version": 1}],
+    )
+    requests_mock.get(
         "http://localhost/items",
         status_code=200,
         json=[

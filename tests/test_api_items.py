@@ -120,8 +120,11 @@ def test_update_item_success(mock_update, override_auth):
 
 
 @patch("app.repositories.item_repository.update_item")
-def test_update_item_conflict_409(mock_update, override_auth):
+@patch("app.repositories.item_repository.get_item_by_id")
+def test_update_item_conflict_409(mock_get_by_id, mock_update, override_auth):
     """Test update failure due to version conflict."""
+    mock_get_by_id.return_value = None
+
     # ValueError triggers 409 Conflict in items.py
     mock_update.side_effect = ValueError("Version conflict detected")
 
