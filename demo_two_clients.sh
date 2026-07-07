@@ -29,7 +29,7 @@
 
 set -euo pipefail
 
-SERVER_URL="${GOPHKEEPER_SERVER:-http://localhost:8000}"
+SERVER_URL="${GOPHKEEPER_SERVER:-http://localhost}"
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
 if [[ ! -f "$REPO_DIR/cli.py" ]]; then
