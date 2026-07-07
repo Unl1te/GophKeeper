@@ -152,7 +152,8 @@ stores ciphertext.
 | `GET /items/{id}`    | —                                     | `200` item + content   | `404`, `401` |
 | `PUT /items/{id}`    | `{content, metadata, version}`        | `200` item detail      | `409` version conflict, `404`, `401` |
 | `DELETE /items/{id}` | —                                     | `204` (soft delete)    | `404`, `401` |
-| `POST /items/sync`   | `{changes: [...]}`                    | `200 {updates: [...]}` | `401` |
+| `GET /items/versions`| —                                     | `200 [{id, version, updated_at}]` | `401` |
+| `POST /items/sync`   | `{items: [{id, version}]}`            | `200 {updates: [...]}` (only items newer than the client's version) | `401` |
 
 CLI usage examples (each `add` / `get` asks for the master password to
 derive the encryption key):
@@ -191,6 +192,22 @@ Success: Item 1 deleted
 `--refresh` to pull the latest from the server. `add` / `get` / `delete` keep the
 cache in sync, and `list` falls back to the cache when the server is unreachable.
 
+### Versions and conflicts
+
+Every item has an integer `version`. Multi-client changes are reconciled with a
+**Last-Write-Wins** policy:
+
+- On `PUT /items/{id}` the client sends the version it holds. If it is stale, the
+  server replies `409 Conflict` with the current version; on success `version` is
+  incremented.
+- **Background check:** `list` calls `GET /items/versions` (a lightweight
+  `id / version / updated_at` list) to detect changes and refresh the local cache
+  automatically. `list --refresh` forces a full pull.
+- **Incremental sync:** `POST /items/sync` takes the `{id, version}` pairs the
+  client holds and returns only the items whose server version is newer.
+- On a conflict during `get` / `delete`, the CLI automatically refreshes and
+  retries, printing a short "Conflict detected … retrying" message.
+  
 The CRUD and synchronization sequence diagrams are in
 [ARCHITECTURE.md](ARCHITECTURE.md#3-interaction-diagrams).
 
@@ -246,7 +263,10 @@ More detail in [ARCHITECTURE.md](ARCHITECTURE.md).
 - ✅ Docker / docker-compose, deployment
 - ✅ register / login logic, JWT
 - ✅ CLI register / login with local token storage
-- ✅ Secrets CRUD (`add` / `list` / `get` / `delete`) + `/items/sync`
+- ✅ Secrets CRUD (`add` / `list` / `get` / `delete`) + incremental `/items/sync` + `/items/versions`
 - ✅ Real cryptography (Argon2id hashing, ChaCha20-Poly1305 encryption)
 - ✅ Local cache for the CLI (`list` from cache, `--refresh`, offline fallback)
-- 🚧 Auto-sync retry on version conflict; CLI `update` / `history` / `version`
+- ✅ Version conflicts (Last-Write-Wins, `409`): CLI background check + auto-retry
+- 🚧 CLI `update` / `history` / `version` commands
+
+---
