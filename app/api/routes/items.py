@@ -65,6 +65,27 @@ async def list_items(
     ]
 
 
+# ---- VERSIONS (lightweight) ----
+@router.get("/versions", response_model=list[dict])
+async def get_items_versions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Lightweight endpoint that returns only id, version, updated_at for all user items.
+    Used by the CLI to check for changes without downloading full data.
+    """
+    items = await item_repository.get_items_versions(db=db, user_id=current_user.id)
+    return [
+        {
+            "id": item.id,
+            "version": item.version,
+            "updated_at": item.updated_at,
+        }
+        for item in items
+    ]
+
+
 # ---- GET ONE ----
 @router.get("/{item_id}", response_model=ItemDetailResponse)
 async def get_item(
@@ -158,27 +179,6 @@ async def delete_item(
         )
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
-
-# ---- VERSIONS (lightweight) ----
-@router.get("/versions", response_model=list[dict])
-async def get_items_versions(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Lightweight endpoint that returns only id, version, updated_at for all user items.
-    Used by the CLI to check for changes without downloading full data.
-    """
-    items = await item_repository.get_items_versions(db=db, user_id=current_user.id)
-    return [
-        {
-            "id": item.id,
-            "version": item.version,
-            "updated_at": item.updated_at,
-        }
-        for item in items
-    ]
 
 
 # ---- INCREMENTAL SYNC ----
