@@ -242,6 +242,50 @@ sequenceDiagram
     end
 ```
 
+### Diagram: background check & incremental sync
+
+`list` checks for changes cheaply via `GET /items/versions`, then pulls only what
+changed via `POST /items/sync`.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as CLI
+    participant Cache as Local cache
+    participant S as Backend
+
+    U->>C: python cli.py list
+    C->>S: GET /items/versions (Bearer JWT)
+    S-->>C: [{id, version, updated_at}, ...]
+    C->>Cache: compare with cached versions
+    alt cache is stale
+        C->>S: POST /items/sync {items: [{id, version}]}
+        S-->>C: {updates: [only newer items]}
+        C->>Cache: apply updates
+    end
+    C-->>U: print items (from cache)
+```
+
+### Diagram: two-client scenario
+
+Two CLI clients share one account. A change made on Client A becomes visible on
+Client B after a background check / `list --refresh`.
+
+```mermaid
+sequenceDiagram
+    participant A as Client A
+    participant S as Backend
+    participant B as Client B
+
+    A->>S: add item → id=1, version=1
+    B->>S: list --refresh → sees id=1 (v1)
+    A->>S: PUT /items/1 (version=1) → server bumps to version=2
+    B->>S: list → GET /items/versions
+    S-->>B: id=1 is now version=2 (stale locally)
+    B->>S: POST /items/sync → returns updated item (v2)
+    B-->>B: cache updated, get shows the new content
+```
+
 ---
 
 ## 4. Cryptographic Primitives
@@ -278,20 +322,24 @@ scoped to the authenticated user.
 | `GET /items/{id}`    | Get a single item including encrypted `content` (`404` if not found/owned) |
 | `PUT /items/{id}`    | Update with a version check (`409` on conflict, `404` if missing) |
 | `DELETE /items/{id}` | Soft-delete (`deleted = true`, row kept) → `204`            |
+| `GET /items/versions`| Lightweight `id / version / updated_at` list — background change check |
 | `POST /items/sync`   | Batch sync: returns all non-deleted items for reconciliation |
 
-**Synchronization model.**
+**Synchronization model (Last-Write-Wins).**
 
 - The server is the source of truth; each item has an integer `version`.
 - `version` auto-increments on every successful update and `updated_at` is
   refreshed.
-- The client sends the version it currently holds on `PUT`. If it is stale, the
-  server returns `409 Conflict` with the current version; the client refetches
-  the latest item and retries (Last-Write-Wins is planned for full auto-sync).
+- On `PUT` the client sends the version it holds. If it is stale, the server
+  returns `409 Conflict` with the current version (`current_version`); the CLI
+  automatically refetches the latest item and retries — **Last-Write-Wins**.
+- **Background check:** the CLI calls `GET /items/versions` (a lightweight
+  `id / version / updated_at` list) before showing data, so `list` can detect
+  changes and refresh the local cache without downloading everything.
+- **Incremental sync:** `POST /items/sync` takes the `{id, version}` pairs the
+  client holds and returns only the items whose server version is newer.
 - `DELETE` is a **soft delete**: the row stays in the database with
   `deleted = true` and is excluded from `list` / `sync` results.
-- `POST /items/sync` returns the full current set (`id`, `version`,
-  `updated_at`, `content`, `metadata`) so a client can reconcile local state.
 - The CLI keeps a **local cache** (`~/.gophkeeper/cache.json`): `list` reads from
   it by default and refreshes from the server with `--refresh` (falling back to
   the cache when offline); `add` / `get` / `delete` keep it in sync.
