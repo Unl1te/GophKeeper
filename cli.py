@@ -437,6 +437,7 @@ GophKeeper CLI - available commands:
 
   history   view history of changes
   version   show version and build date
+  tui       launch the interactive terminal UI (menu-driven)
   help      show this help message
 
 Usage: python cli.py <command> [args...]
@@ -446,6 +447,13 @@ Examples:
   python cli.py get 1
 """
     )
+
+
+def tui():
+    """Launch the interactive terminal UI (menu-driven alternative to the CLI)."""
+    from tui import main as tui_main
+
+    tui_main()
 
 
 COMMANDS = {
@@ -458,6 +466,7 @@ COMMANDS = {
     "delete": delete_item,
     "history": history,
     "version": version,
+    "tui": tui,
     "help": help,
 }
 
