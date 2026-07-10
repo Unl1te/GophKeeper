@@ -22,6 +22,7 @@ class DataType(str, enum.Enum):
     card = "card"
     text = "text"
     binary = "binary"
+    otp = "otp"
 
 
 class Base(DeclarativeBase):
