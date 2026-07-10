@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.validators import is_valid_otp_secret
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.models.models import User
@@ -124,6 +125,22 @@ async def update_item(
     Update an existing item.
     Returns 409 Conflict if the client version is stale.
     """
+    # Fetch current item to know its type
+    existing_item = await item_repository.get_item_by_id(db, item_id, current_user.id)
+    if existing_item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+        )
+
+    # Validate OTP secret if type is OTP
+    if existing_item.type == DataType.otp and not is_valid_otp_secret(
+        update_data.content
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="OTP secret must be a valid base32-encoded string (minimum 16 bytes after decoding)",
+        )
+
     try:
         item = await item_repository.update_item(
             db=db,
@@ -136,14 +153,10 @@ async def update_item(
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
-        # Conflict: client version does not match server version.
-        # We can optionally include the current version in the response body.
-        # We'll fetch the current item to get its version.
         current_item = await item_repository.get_item_by_id(
             db, item_id, current_user.id
         )
         if current_item is None:
-            # Should not happen if LookupError was not raised, but just in case.
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
             )
