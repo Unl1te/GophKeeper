@@ -20,12 +20,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("""
+    op.execute(
+        """
         ALTER TYPE datatype RENAME TO datatype_old;
         CREATE TYPE datatype AS ENUM ('password', 'card', 'text', 'binary');
         ALTER TABLE items
             ALTER COLUMN type TYPE datatype
             USING type::text::datatype;
         DROP TYPE datatype_old;
-    """)
-    
+    """
+    )
