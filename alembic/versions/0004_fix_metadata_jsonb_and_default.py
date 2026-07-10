@@ -1,4 +1,3 @@
-
 """alter metadata column to JSONB with default {}
 
 Revision ID: 0004
@@ -58,4 +57,3 @@ def downgrade() -> None:
             existing_nullable=True,
             existing_type=sa.JSON(),
         )
-        
