@@ -88,8 +88,10 @@ def _add_history_entry(item_id, version, content, metadata):
     entry = {
         "version": version,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "content_preview": content[:50] if isinstance(content, str) else str(content)[:50],
-        "metadata": metadata
+        "content_preview": content[:50]
+        if isinstance(content, str)
+        else str(content)[:50],
+        "metadata": metadata,
     }
     history[key].append(entry)
     _save_history(history)
@@ -181,7 +183,9 @@ def register():
         )
         if response.status_code == 201:
             data = response.json()
-            console.print(f"[green]{data.get('message', 'Registered successfully')}[/green]")
+            console.print(
+                f"[green]{data.get('message', 'Registered successfully')}[/green]"
+            )
         elif response.status_code == 409:
             print_error(f"user '{login}' already exists")
         else:
@@ -284,7 +288,9 @@ def add_item():
             data = response.json()
             cache.upsert(data)
             _add_history_entry(data["id"], data["version"], content, metadata)
-            print_success(f"Item created (id: {data['id']}, version: {data['version']})")
+            print_success(
+                f"Item created (id: {data['id']}, version: {data['version']})"
+            )
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
@@ -368,9 +374,13 @@ def get_item():
                 console.print(decrypted.hex())
         elif response.status_code == 404:
             cache.remove(item_id)
-            print_error(f"Item {item_id} not found on server (removed from local cache)")
+            print_error(
+                f"Item {item_id} not found on server (removed from local cache)"
+            )
         elif response.status_code == 409:
-            print_error(f"Conflict detected for item {item_id}. Refreshing cache and retrying...")
+            print_error(
+                f"Conflict detected for item {item_id}. Refreshing cache and retrying..."
+            )
             if _refresh_cache_from_server():
                 get_item()
             else:
@@ -391,7 +401,10 @@ def delete_item():
         return
     item_id = sys.argv[2]
 
-    if not Confirm.ask(f"[yellow]Are you sure you want to delete item {item_id}?[/yellow]", default=False):
+    if not Confirm.ask(
+        f"[yellow]Are you sure you want to delete item {item_id}?[/yellow]",
+        default=False,
+    ):
         console.print("[yellow]Cancelled[/yellow]")
         return
 
@@ -406,7 +419,9 @@ def delete_item():
             cache.remove(item_id)
             print_error(f"Item {item_id} not found (removed from local cache)")
         elif response.status_code == 409:
-            print_error(f"Conflict detected for item {item_id}. Refreshing cache and retrying delete...")
+            print_error(
+                f"Conflict detected for item {item_id}. Refreshing cache and retrying delete..."
+            )
             if _refresh_cache_from_server():
                 delete_item()
             else:
@@ -456,7 +471,9 @@ def update_item():
 
     console.print(f"[bold]Current content:[/bold] {decrypted}")
     new_content = Prompt.ask("New content", default=decrypted)
-    new_metadata = Prompt.ask("New metadata (JSON)", default=json.dumps(item.get("metadata", {})))
+    new_metadata = Prompt.ask(
+        "New metadata (JSON)", default=json.dumps(item.get("metadata", {}))
+    )
     try:
         new_metadata = json.loads(new_metadata)
     except json.JSONDecodeError:
@@ -476,9 +493,7 @@ def update_item():
     for attempt in range(max_retries):
         try:
             response = requests.put(
-                f"{SERVER_URL}/items/{item_id}",
-                json=payload,
-                headers=get_headers()
+                f"{SERVER_URL}/items/{item_id}", json=payload, headers=get_headers()
             )
             if response.status_code == 200:
                 data = response.json()
@@ -487,7 +502,9 @@ def update_item():
                 print_success(f"Item {item_id} updated (version {data['version']})")
                 return
             elif response.status_code == 409:
-                console.print("[yellow]Conflict detected. Fetching latest version...[/yellow]")
+                console.print(
+                    "[yellow]Conflict detected. Fetching latest version...[/yellow]"
+                )
                 r = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
                 if r.status_code == 200:
                     item = r.json()
@@ -518,10 +535,14 @@ def history():
     history_data = _load_history().get(str(item_id), [])
     if not history_data:
         try:
-            response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
+            response = requests.get(
+                f"{SERVER_URL}/items/{item_id}", headers=get_headers()
+            )
             if response.status_code == 200:
                 item = response.json()
-                console.print(f"[yellow]No local history found. Current version: {item['version']} at {item['updated_at']}[/yellow]")
+                console.print(
+                    f"[yellow]No local history found. Current version: {item['version']} at {item['updated_at']}[/yellow]"
+                )
             elif response.status_code == 404:
                 print_error(f"Item {item_id} not found")
             else:
@@ -537,7 +558,9 @@ def history():
     table.add_column("Timestamp", style="white")
     table.add_column("Content preview", style="green")
     for entry in history_data:
-        table.add_row(str(entry["version"]), entry["timestamp"], entry["content_preview"])
+        table.add_row(
+            str(entry["version"]), entry["timestamp"], entry["content_preview"]
+        )
     console.print(table)
 
 
@@ -555,7 +578,10 @@ def export_items():
         console.print("[yellow]Cache is empty. Nothing to export.[/yellow]")
         return
     if os.path.exists(filepath):
-        if not Confirm.ask(f"[yellow]File {filepath} already exists. Overwrite?[/yellow]", default=False):
+        if not Confirm.ask(
+            f"[yellow]File {filepath} already exists. Overwrite?[/yellow]",
+            default=False,
+        ):
             console.print("[yellow]Export cancelled.[/yellow]")
             return
     with open(filepath, "w") as f:
@@ -588,11 +614,14 @@ def import_items():
         else:
             new_items += 1
         cache.upsert(item)
-    console.print(f"[green]Imported {len(imported)} items: {new_items} new, {overwritten} overwritten.[/green]")
+    console.print(
+        f"[green]Imported {len(imported)} items: {new_items} new, {overwritten} overwritten.[/green]"
+    )
 
 
 def tui():
     from tui import main as tui_main
+
     tui_main()
 
 
@@ -650,13 +679,17 @@ COMMANDS = {
 
 def main():
     if len(sys.argv) < 2:
-        console.print("[red]No command provided. Run 'python cli.py help' to see available commands[/red]")
+        console.print(
+            "[red]No command provided. Run 'python cli.py help' to see available commands[/red]"
+        )
         sys.exit(1)
 
     command = sys.argv[1].lower()
 
     if command not in COMMANDS:
-        console.print(f"[red]Unknown command: '{command}'. Run 'python cli.py help' to see available commands[/red]")
+        console.print(
+            f"[red]Unknown command: '{command}'. Run 'python cli.py help' to see available commands[/red]"
+        )
         sys.exit(1)
 
     COMMANDS[command]()
