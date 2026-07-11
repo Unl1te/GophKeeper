@@ -9,7 +9,6 @@ import requests
 from rich.console import Console
 from rich.table import Table
 from rich.prompt import Confirm, Prompt
-from rich import print as rprint
 
 from crypto_interface import derive_key, encrypt_data, decrypt_data
 from cli_cache import LocalCache
@@ -428,7 +427,6 @@ def update_item():
         return
     item_id = sys.argv[2]
 
-    # Fetch current item
     try:
         response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
         if response.status_code == 404:
@@ -447,7 +445,6 @@ def update_item():
         print_error("Could not connect to server")
         return
 
-    # Decrypt
     master_password = ask_master_password()
     key = derive_encryption_key(master_password)
     try:
@@ -466,7 +463,6 @@ def update_item():
         print_error("Invalid JSON for metadata. Keeping old.")
         new_metadata = item.get("metadata", {})
 
-    # Re-encrypt
     new_content_bytes = new_content.encode("utf-8")
     encrypted_new = encrypt_data(new_content_bytes, key)
 
@@ -476,7 +472,6 @@ def update_item():
         "version": item["version"],
     }
 
-    # Send update with retry on 409
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -493,12 +488,10 @@ def update_item():
                 return
             elif response.status_code == 409:
                 console.print("[yellow]Conflict detected. Fetching latest version...[/yellow]")
-                # Get latest item and retry
                 r = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
                 if r.status_code == 200:
                     item = r.json()
                     payload["version"] = item["version"]
-                    # Use the latest content as default? We keep our new content.
                     continue
                 else:
                     print_error("Could not fetch latest version.")
@@ -524,7 +517,6 @@ def history():
     item_id = sys.argv[2]
     history_data = _load_history().get(str(item_id), [])
     if not history_data:
-        # Show current item version
         try:
             response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
             if response.status_code == 200:
@@ -554,7 +546,21 @@ def version():
 
 
 def export_items():
-    console.print("[yellow]Export command not yet implemented.[/yellow]")
+    if len(sys.argv) < 3:
+        print_error("Usage: python cli.py export <file>")
+        return
+    filepath = sys.argv[2]
+    items = cache.list_items()
+    if not items:
+        console.print("[yellow]Cache is empty. Nothing to export.[/yellow]")
+        return
+    if os.path.exists(filepath):
+        if not Confirm.ask(f"[yellow]File {filepath} already exists. Overwrite?[/yellow]", default=False):
+            console.print("[yellow]Export cancelled.[/yellow]")
+            return
+    with open(filepath, "w") as f:
+        json.dump(items, f, indent=2)
+    console.print(f"[green]Exported {len(items)} items to {filepath}[/green]")
 
 
 def import_items():
@@ -583,7 +589,7 @@ def help():
 
   [cyan]history[/cyan]   view local change history of an item
   [cyan]version[/cyan]   show version and build date
-  [cyan]export[/cyan]    export cache to JSON file (stub)
+  [cyan]export[/cyan]    export cache to JSON file
   [cyan]import[/cyan]    import items from JSON file (stub)
   [cyan]tui[/cyan]       launch the interactive terminal UI (menu-driven)
   [cyan]help[/cyan]      show this help message
@@ -594,6 +600,7 @@ def help():
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
   python cli.py update 1
+  python cli.py export backup.json
 """
     )
 
