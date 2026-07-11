@@ -23,7 +23,7 @@ HISTORY_FILE = os.path.join(CONFIG_DIR, "history.json")
 cache = LocalCache(path=os.path.join(CONFIG_DIR, "cache.json"))
 console = Console()
 
-VERSION = "0.3.0"
+VERSION = "1.0.0"
 BUILD_DATE = "2026-07-11"
 
 
