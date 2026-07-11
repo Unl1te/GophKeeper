@@ -24,6 +24,9 @@ HISTORY_FILE = os.path.join(CONFIG_DIR, "history.json")
 cache = LocalCache(path=os.path.join(CONFIG_DIR, "cache.json"))
 console = Console()
 
+VERSION = "1.0.0"
+BUILD_DATE = "2026-07-11"
+
 
 # Token management
 def save_token(token: str):
@@ -547,11 +550,7 @@ def history():
 
 
 def version():
-    try:
-        with open("VERSION", "r") as f:
-            console.print(f.read())
-    except FileNotFoundError:
-        console.print("[red]VERSION file not found[/red]")
+    console.print(f"[bold]GophKeeper CLI[/bold] v{VERSION} (built {BUILD_DATE})")
 
 
 def export_items():
