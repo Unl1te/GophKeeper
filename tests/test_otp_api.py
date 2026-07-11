@@ -43,20 +43,18 @@ def test_create_otp_with_valid_secret(mock_create, override_auth):
     )
     mock_create.return_value = mock_item
 
-    content_b64 = base64.b64encode(VALID_OTP_SECRET.encode()).decode()
-    payload = {"type": "otp", "content": content_b64, "metadata": {}}
+    payload = {"type": "otp", "content": VALID_OTP_SECRET, "metadata": {}}
     response = client.post("/items/", json=payload)
 
     assert response.status_code == 201
     data = response.json()
     assert data["type"] == "otp"
-    assert data["content"] == content_b64
+    assert data["content"] == VALID_OTP_SECRET
 
 
 @patch("app.repositories.item_repository.create_item")
 def test_create_otp_with_invalid_secret_returns_422(mock_create, override_auth):
-    invalid_b64 = base64.b64encode(b"invalid!").decode()
-    payload = {"type": "otp", "content": invalid_b64, "metadata": {}}
+    payload = {"type": "otp", "content": "invalid!", "metadata": {}}
     response = client.post("/items/", json=payload)
 
     assert response.status_code == 422
@@ -69,8 +67,7 @@ def test_create_otp_with_invalid_secret_returns_422(mock_create, override_auth):
 @patch("app.repositories.item_repository.create_item")
 def test_create_otp_with_short_secret_returns_422(mock_create, override_auth):
     short = "JBSWY3DP"
-    short_b64 = base64.b64encode(short.encode()).decode()
-    payload = {"type": "otp", "content": short_b64, "metadata": {}}
+    payload = {"type": "otp", "content": short, "metadata": {}}
     response = client.post("/items/", json=payload)
 
     assert response.status_code == 422
@@ -93,8 +90,7 @@ def test_create_non_otp_with_invalid_base32_allowed(mock_create, override_auth):
     )
     mock_create.return_value = mock_item
 
-    content_b64 = base64.b64encode(b"not base32!").decode()
-    payload = {"type": "text", "content": content_b64, "metadata": {}}
+    payload = {"type": "text", "content": "not base32!", "metadata": {}}
     response = client.post("/items/", json=payload)
 
     assert response.status_code == 201
@@ -128,14 +124,13 @@ def test_update_otp_with_valid_secret(mock_update, mock_get, override_auth):
     )
     mock_update.return_value = updated
 
-    content_b64 = base64.b64encode(ANOTHER_VALID_OTP_SECRET.encode()).decode()
-    payload = {"content": content_b64, "metadata": {}, "version": 1}
+    payload = {"content": ANOTHER_VALID_OTP_SECRET, "metadata": {}, "version": 1}
     response = client.put("/items/1", json=payload)
 
     assert response.status_code == 200
     data = response.json()
     assert data["version"] == 2
-    assert data["content"] == content_b64
+    assert data["content"] == ANOTHER_VALID_OTP_SECRET
 
 
 @patch("app.repositories.item_repository.get_item_by_id")
@@ -151,8 +146,7 @@ def test_update_otp_with_invalid_secret_returns_422(mock_get, override_auth):
     )
     mock_get.return_value = existing
 
-    invalid_b64 = base64.b64encode(b"invalid!").decode()
-    payload = {"content": invalid_b64, "metadata": {}, "version": 1}
+    payload = {"content": "invalid!", "metadata": {}, "version": 1}
     response = client.put("/items/1", json=payload)
 
     assert response.status_code == 422
@@ -186,8 +180,7 @@ def test_update_non_otp_does_not_validate_base32(mock_update, mock_get, override
     )
     mock_update.return_value = updated
 
-    content_b64 = base64.b64encode(b"not base32 at all").decode()
-    payload = {"content": content_b64, "metadata": {}, "version": 1}
+    payload = {"content": "not base32 at all", "metadata": {}, "version": 1}
     response = client.put("/items/1", json=payload)
 
     assert response.status_code == 200
