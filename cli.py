@@ -564,7 +564,31 @@ def export_items():
 
 
 def import_items():
-    console.print("[yellow]Import command not yet implemented.[/yellow]")
+    if len(sys.argv) < 3:
+        print_error("Usage: python cli.py import <file>")
+        return
+    filepath = sys.argv[2]
+    try:
+        with open(filepath, "r") as f:
+            imported = json.load(f)
+        if not isinstance(imported, list):
+            raise ValueError("Expected a JSON array")
+    except Exception as e:
+        print_error(f"Invalid file: {e}")
+        return
+
+    current_ids = {item["id"] for item in cache.list_items()}
+    overwritten = 0
+    new_items = 0
+    for item in imported:
+        if "id" not in item:
+            continue
+        if item["id"] in current_ids:
+            overwritten += 1
+        else:
+            new_items += 1
+        cache.upsert(item)
+    console.print(f"[green]Imported {len(imported)} items: {new_items} new, {overwritten} overwritten.[/green]")
 
 
 def tui():
@@ -590,7 +614,7 @@ def help():
   [cyan]history[/cyan]   view local change history of an item
   [cyan]version[/cyan]   show version and build date
   [cyan]export[/cyan]    export cache to JSON file
-  [cyan]import[/cyan]    import items from JSON file (stub)
+  [cyan]import[/cyan]    import items from JSON file
   [cyan]tui[/cyan]       launch the interactive terminal UI (menu-driven)
   [cyan]help[/cyan]      show this help message
 
@@ -601,6 +625,7 @@ def help():
   python cli.py get 1
   python cli.py update 1
   python cli.py export backup.json
+  python cli.py import backup.json
 """
     )
 
