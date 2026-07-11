@@ -3,6 +3,7 @@ import getpass
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
 import requests
 from rich.console import Console
@@ -18,6 +19,7 @@ SERVER_URL = os.environ.get("GOPHKEEPER_SERVER", "http://localhost")
 # to run several independent clients side by side (e.g. the two-client demo).
 CONFIG_DIR = os.environ.get("GOPHKEEPER_HOME") or os.path.expanduser("~/.gophkeeper")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+HISTORY_FILE = os.path.join(CONFIG_DIR, "history.json")
 
 cache = LocalCache(path=os.path.join(CONFIG_DIR, "cache.json"))
 console = Console()
@@ -60,6 +62,35 @@ def print_error(message: str):
 
 def print_success(message: str):
     console.print(f"[green]Success: {message}[/green]")
+
+
+# History management
+def _load_history() -> dict:
+    if not os.path.exists(HISTORY_FILE):
+        return {}
+    with open(HISTORY_FILE, "r") as f:
+        return json.load(f)
+
+
+def _save_history(history: dict):
+    os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=2)
+
+
+def _add_history_entry(item_id, version, content, metadata):
+    history = _load_history()
+    key = str(item_id)
+    if key not in history:
+        history[key] = []
+    entry = {
+        "version": version,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "content_preview": content[:50] if isinstance(content, str) else str(content)[:50],
+        "metadata": metadata
+    }
+    history[key].append(entry)
+    _save_history(history)
 
 
 # Background check
@@ -250,6 +281,7 @@ def add_item():
         if response.status_code == 201:
             data = response.json()
             cache.upsert(data)
+            _add_history_entry(data["id"], data["version"], content, metadata)
             print_success(f"Item created (id: {data['id']}, version: {data['version']})")
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
@@ -387,12 +419,139 @@ def delete_item():
         print_error("Could not connect to server")
 
 
+def update_item():
+    if len(sys.argv) < 3:
+        print_error("Usage: python cli.py update <id>")
+        return
+    item_id = sys.argv[2]
+
+    # Fetch current item
+    try:
+        response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
+        if response.status_code == 404:
+            print_error(f"Item {item_id} not found")
+            return
+        elif response.status_code == 401:
+            print_error("Not authenticated. Please login first.")
+            return
+        elif response.status_code != 200:
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
+            return
+        item = response.json()
+    except requests.exceptions.ConnectionError:
+        print_error("Could not connect to server")
+        return
+
+    # Decrypt
+    master_password = ask_master_password()
+    key = derive_encryption_key(master_password)
+    try:
+        encrypted_bytes = bytes.fromhex(item["content"])
+        decrypted = decrypt_data(encrypted_bytes, key).decode("utf-8")
+    except Exception:
+        print_error("Failed to decrypt item. Wrong master password?")
+        return
+
+    console.print(f"[bold]Current content:[/bold] {decrypted}")
+    new_content = Prompt.ask("New content", default=decrypted)
+    new_metadata = Prompt.ask("New metadata (JSON)", default=json.dumps(item.get("metadata", {})))
+    try:
+        new_metadata = json.loads(new_metadata)
+    except json.JSONDecodeError:
+        print_error("Invalid JSON for metadata. Keeping old.")
+        new_metadata = item.get("metadata", {})
+
+    # Re-encrypt
+    new_content_bytes = new_content.encode("utf-8")
+    encrypted_new = encrypt_data(new_content_bytes, key)
+
+    payload = {
+        "content": encrypted_new.hex(),
+        "metadata": new_metadata,
+        "version": item["version"],
+    }
+
+    # Send update with retry on 409
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.put(
+                f"{SERVER_URL}/items/{item_id}",
+                json=payload,
+                headers=get_headers()
+            )
+            if response.status_code == 200:
+                data = response.json()
+                cache.upsert(data)
+                _add_history_entry(item_id, data["version"], new_content, new_metadata)
+                print_success(f"Item {item_id} updated (version {data['version']})")
+                return
+            elif response.status_code == 409:
+                console.print("[yellow]Conflict detected. Fetching latest version...[/yellow]")
+                # Get latest item and retry
+                r = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
+                if r.status_code == 200:
+                    item = r.json()
+                    payload["version"] = item["version"]
+                    # Use the latest content as default? We keep our new content.
+                    continue
+                else:
+                    print_error("Could not fetch latest version.")
+                    return
+            elif response.status_code == 401:
+                print_error("Not authenticated. Please login first.")
+                return
+            else:
+                print_error(
+                    f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+                )
+                return
+        except requests.exceptions.ConnectionError:
+            print_error("Could not connect to server")
+            return
+    print_error("Update failed after multiple retries due to conflicts.")
+
+
 def history():
-    console.print("[yellow]History command not yet implemented.[/yellow]")
+    if len(sys.argv) < 3:
+        print_error("Usage: python cli.py history <id>")
+        return
+    item_id = sys.argv[2]
+    history_data = _load_history().get(str(item_id), [])
+    if not history_data:
+        # Show current item version
+        try:
+            response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
+            if response.status_code == 200:
+                item = response.json()
+                console.print(f"[yellow]No local history found. Current version: {item['version']} at {item['updated_at']}[/yellow]")
+            elif response.status_code == 404:
+                print_error(f"Item {item_id} not found")
+            else:
+                print_error(
+                    f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+                )
+        except requests.exceptions.ConnectionError:
+            print_error("Could not connect to server")
+        return
+
+    table = Table(title=f"History for item {item_id}", style="bright_blue")
+    table.add_column("Version", style="cyan", no_wrap=True)
+    table.add_column("Timestamp", style="white")
+    table.add_column("Content preview", style="green")
+    for entry in history_data:
+        table.add_row(str(entry["version"]), entry["timestamp"], entry["content_preview"])
+    console.print(table)
 
 
 def version():
-    console.print("[yellow]Version command not yet implemented.[/yellow]")
+    try:
+        with open("VERSION", "r") as f:
+            console.print(f.read())
+    except FileNotFoundError:
+        console.print("[red]VERSION file not found[/red]")
 
 
 def export_items():
@@ -421,9 +580,10 @@ def help():
   [cyan]list[/cyan]      list all items (from cache; use 'list --refresh' to pull from server)
   [cyan]get[/cyan]       get and decrypt an item by ID
   [cyan]delete[/cyan]    delete an item by ID
+  [cyan]update[/cyan]    update an existing item (interactive)
 
-  [cyan]history[/cyan]   view history of changes (stub)
-  [cyan]version[/cyan]   show version and build date (stub)
+  [cyan]history[/cyan]   view local change history of an item
+  [cyan]version[/cyan]   show version and build date
   [cyan]export[/cyan]    export cache to JSON file (stub)
   [cyan]import[/cyan]    import items from JSON file (stub)
   [cyan]tui[/cyan]       launch the interactive terminal UI (menu-driven)
@@ -434,6 +594,7 @@ def help():
   python cli.py add --type text --content "my secret" --meta note=test
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
+  python cli.py update 1
 """
     )
 
@@ -446,6 +607,7 @@ COMMANDS = {
     "list": list_items,
     "get": get_item,
     "delete": delete_item,
+    "update": update_item,
     "history": history,
     "version": version,
     "export": export_items,
