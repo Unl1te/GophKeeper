@@ -11,9 +11,8 @@ from app.models.models import DataType, Item, User
 
 client = TestClient(app)
 
-# Стандартный тестовый OTP-секрет (16 байт после декодирования)
-VALID_OTP_SECRET = "JBSWY3DPEHPK3PXP"  # 16 байт
-ANOTHER_VALID_OTP_SECRET = "JBSWY3DPEHPK3PXQ"  # другой, тоже 16 байт
+VALID_OTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+ANOTHER_VALID_OTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXQ"
 
 
 @pytest.fixture
@@ -69,7 +68,7 @@ def test_create_otp_with_invalid_secret_returns_422(mock_create, override_auth):
 
 @patch("app.repositories.item_repository.create_item")
 def test_create_otp_with_short_secret_returns_422(mock_create, override_auth):
-    short = "JBSWY3DP"  # 8 символов → 5 байт
+    short = "JBSWY3DP"
     short_b64 = base64.b64encode(short.encode()).decode()
     payload = {"type": "otp", "content": short_b64, "metadata": {}}
     response = client.post("/items/", json=payload)

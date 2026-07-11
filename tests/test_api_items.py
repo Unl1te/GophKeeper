@@ -93,9 +93,20 @@ def test_get_single_item_success(mock_get, override_auth):
     assert response.json()["content"] == "secret"
 
 
+@patch("app.repositories.item_repository.get_item_by_id")
 @patch("app.repositories.item_repository.update_item")
-def test_update_item_success(mock_update, override_auth):
+def test_update_item_success(mock_update, mock_get, override_auth):
     """Test successful item update."""
+    mock_get.return_value = Item(
+        id=42,
+        user_id=1,
+        type=DataType.text,
+        content=b"old_secret",
+        version=1,
+        updated_at=datetime.now(timezone.utc),
+        metadata_={},
+    )
+
     mock_item = Item(
         id=42,
         user_id=1,
