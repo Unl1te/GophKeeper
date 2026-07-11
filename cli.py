@@ -5,6 +5,10 @@ import os
 import sys
 
 import requests
+from rich.console import Console
+from rich.table import Table
+from rich.prompt import Confirm, Prompt
+from rich import print as rprint
 
 from crypto_interface import derive_key, encrypt_data, decrypt_data
 from cli_cache import LocalCache
@@ -16,6 +20,7 @@ CONFIG_DIR = os.environ.get("GOPHKEEPER_HOME") or os.path.expanduser("~/.gophkee
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
 cache = LocalCache(path=os.path.join(CONFIG_DIR, "cache.json"))
+console = Console()
 
 
 # Token management
@@ -50,16 +55,15 @@ def derive_encryption_key(master_password: str) -> bytes:
 
 
 def print_error(message: str):
-    print(f"Error: {message}")
+    console.print(f"[red]Error: {message}[/red]")
 
 
 def print_success(message: str):
-    print(f"Success: {message}")
+    console.print(f"[green]Success: {message}[/green]")
 
 
-# Background check: fetch /items/versions and refresh cache if needed
+# Background check
 def _fetch_versions() -> list | None:
-    """Fetch /items/versions from server. Returns list of {id, version, updated_at} or None on failure."""
     try:
         response = requests.get(f"{SERVER_URL}/items/versions", headers=get_headers())
         if response.status_code == 200:
@@ -73,16 +77,15 @@ def _fetch_versions() -> list | None:
             )
             return None
     except requests.exceptions.ConnectionError:
-        return None  # offline
+        return None
 
 
 def _refresh_cache_from_server():
-    """Pull full item list from /items and sync the cache."""
     try:
         response = requests.get(f"{SERVER_URL}/items", headers=get_headers())
         if response.status_code == 200:
             cache.sync(response.json())
-            print("Cache updated.")
+            console.print("[green]Cache updated.[/green]")
             return True
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
@@ -98,22 +101,14 @@ def _refresh_cache_from_server():
 
 
 def _check_and_update_cache_if_needed():
-    """
-    Check server versions via /items/versions.
-    If any version differs from cache, update cache.
-    Returns True if cache was updated, False otherwise.
-    """
     versions = _fetch_versions()
     if versions is None:
-        # Server unreachable – show cached data if available
         if cache.list_items():
-            print("(offline — showing cached items)")
+            console.print("[yellow](offline — showing cached items)[/yellow]")
         return False
 
-    # Compare with cache
     cached_items = cache.list_items()
     cached_versions = {item["id"]: item["version"] for item in cached_items}
-
     need_update = False
     for v in versions:
         sid = v["id"]
@@ -122,12 +117,11 @@ def _check_and_update_cache_if_needed():
         if cver is None or cver != sver:
             need_update = True
             break
-    # Also check if server has fewer items (deletions)
     if len(versions) != len(cached_items):
         need_update = True
 
     if need_update:
-        print("Updating cache...")
+        console.print("[yellow]Updating cache...[/yellow]")
         return _refresh_cache_from_server()
     return False
 
@@ -138,15 +132,15 @@ def health():
         response = requests.get(f"{SERVER_URL}/health")
         data = response.json()
         if data.get("status") == "ok":
-            print("OK")
+            console.print("[green]OK[/green]")
         else:
-            print(f"Unexpected response: {data}")
+            console.print(f"[red]Unexpected response: {data}[/red]")
     except requests.exceptions.ConnectionError:
-        print("Error: could not connect to server")
+        print_error("could not connect to server")
 
 
 def register():
-    login = input("login: ")
+    login = Prompt.ask("login")
     password = getpass.getpass("password: ")
     try:
         response = requests.post(
@@ -154,19 +148,19 @@ def register():
         )
         if response.status_code == 201:
             data = response.json()
-            print(data.get("message", "Registered successfully"))
+            console.print(f"[green]{data.get('message', 'Registered successfully')}[/green]")
         elif response.status_code == 409:
-            print(f"Error: user '{login}' already exists")
+            print_error(f"user '{login}' already exists")
         else:
-            print(
-                f"Error: {response.status_code} — {response.json().get('detail', 'something went wrong')}"
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'something went wrong')}"
             )
     except requests.exceptions.ConnectionError:
-        print("Error: could not connect to server")
+        print_error("could not connect to server")
 
 
 def login():
-    login_input = input("login: ")
+    login_input = Prompt.ask("login")
     password = getpass.getpass("password: ")
     try:
         response = requests.post(
@@ -177,18 +171,17 @@ def login():
             token = data.get("access_token")
             save_token(token)
             cache.clear()
-            print("Logged in successfully")
+            console.print("[green]Logged in successfully[/green]")
         elif response.status_code == 401:
-            print("Error: invalid login or password")
+            print_error("invalid login or password")
         else:
-            print(
-                f"Error: {response.status_code} — {response.json().get('detail', 'something went wrong')}"
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'something went wrong')}"
             )
     except requests.exceptions.ConnectionError:
-        print("Error: could not connect to server")
+        print_error("could not connect to server")
 
 
-# Item commands
 def add_item():
     parser = argparse.ArgumentParser(prog="cli.py add", add_help=False)
     parser.add_argument(
@@ -220,7 +213,7 @@ def add_item():
         content_bytes = args.content.encode("utf-8")
     else:
         if args.type == "binary":
-            file_path = input("Path to file: ").strip()
+            file_path = Prompt.ask("Path to file")
             if not file_path:
                 print_error("No file provided")
                 return
@@ -231,7 +224,7 @@ def add_item():
                 print_error(f"File not found: {file_path}")
                 return
         else:
-            content = input("Content: ")
+            content = Prompt.ask("Content")
             content_bytes = content.encode("utf-8")
 
     if content_bytes is None:
@@ -257,9 +250,7 @@ def add_item():
         if response.status_code == 201:
             data = response.json()
             cache.upsert(data)
-            print_success(
-                f"Item created (id: {data['id']}, version: {data['version']})"
-            )
+            print_success(f"Item created (id: {data['id']}, version: {data['version']})")
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
@@ -271,40 +262,36 @@ def add_item():
 
 
 def _print_items(items):
-    print(f"{'ID':<6} {'Type':<10} {'Version':<8} {'Updated At'}")
-    print("-" * 50)
+    if not items:
+        console.print("[yellow]No items found[/yellow]")
+        return
+    table = Table(title="Your Items", style="bright_blue")
+    table.add_column("ID", style="cyan", no_wrap=True)
+    table.add_column("Type", style="magenta")
+    table.add_column("Version", style="green", justify="right")
+    table.add_column("Updated At", style="white")
     for item in items:
         updated = (item.get("updated_at") or "")[:19]
-        print(f"{item['id']:<6} {item['type']:<10} {item['version']:<8} {updated}")
+        table.add_row(str(item["id"]), item["type"], str(item["version"]), updated)
+    console.print(table)
 
 
 def list_items():
-    """
-    List items from the local cache by default. Use --refresh to pull from server.
-    If cache is empty or stale (missing required fields), automatically refresh.
-    Falls back to cache if server is unreachable.
-    """
     refresh = "--refresh" in sys.argv[2:]
     cached = cache.list_items()
 
-    # If --refresh is given, force fetch from server
     if refresh:
         if _refresh_cache_from_server():
             cached = cache.list_items()
         else:
-            # If refresh failed, still try to show what we have
             if not cached:
                 print_error("Could not refresh and no cached items")
                 return
-            print("(offline — showing cached items)")
-
-    # Otherwise, do background check if cache is not empty
+            console.print("[yellow](offline — showing cached items)[/yellow]")
     elif cached:
-        # Background check: fetch /items/versions and update if needed
         _check_and_update_cache_if_needed()
         cached = cache.list_items()
     else:
-        # Cache empty – fetch from server
         if _refresh_cache_from_server():
             cached = cache.list_items()
         else:
@@ -312,7 +299,7 @@ def list_items():
             return
 
     if not cached:
-        print("No items found")
+        console.print("[yellow]No items found[/yellow]")
         return
 
     _print_items(cached)
@@ -335,30 +322,23 @@ def get_item():
             encrypted_bytes = bytes.fromhex(item["content"])
             decrypted = decrypt_data(encrypted_bytes, key)
 
-            print(f"\nItem #{item['id']}")
-            print(f"Type: {item['type']}")
-            print(f"Version: {item['version']}")
-            print(f"Updated: {item['updated_at']}")
-            print(f"Metadata: {item.get('metadata', {})}")
-            print("\n--- Content ---")
+            console.print(f"\n[bold cyan]Item #{item['id']}[/bold cyan]")
+            console.print(f"Type: [magenta]{item['type']}[/magenta]")
+            console.print(f"Version: [green]{item['version']}[/green]")
+            console.print(f"Updated: [white]{item['updated_at']}[/white]")
+            console.print(f"Metadata: [yellow]{item.get('metadata', {})}[/yellow]")
+            console.print("\n[bold]--- Content ---[/bold]")
             try:
-                print(decrypted.decode("utf-8"))
+                console.print(decrypted.decode("utf-8"))
             except UnicodeDecodeError:
-                print(decrypted.hex())
+                console.print(decrypted.hex())
         elif response.status_code == 404:
-            # Remove stale entry from cache
             cache.remove(item_id)
-            print_error(
-                f"Item {item_id} not found on server (removed from local cache)"
-            )
+            print_error(f"Item {item_id} not found on server (removed from local cache)")
         elif response.status_code == 409:
-            # Conflict: server version is newer – refresh cache and retry
-            print_error(
-                f"Conflict detected for item {item_id}. Refreshing cache and retrying..."
-            )
+            print_error(f"Conflict detected for item {item_id}. Refreshing cache and retrying...")
             if _refresh_cache_from_server():
-                # After refresh, try again automatically
-                get_item()  # recursive retry
+                get_item()
             else:
                 print_error("Could not refresh cache. Please try again later.")
         elif response.status_code == 401:
@@ -377,9 +357,8 @@ def delete_item():
         return
     item_id = sys.argv[2]
 
-    confirm = input(f"Are you sure you want to delete item {item_id}? [y/N] ")
-    if confirm.lower() != "y":
-        print("Cancelled")
+    if not Confirm.ask(f"[yellow]Are you sure you want to delete item {item_id}?[/yellow]", default=False):
+        console.print("[yellow]Cancelled[/yellow]")
         return
 
     try:
@@ -393,12 +372,8 @@ def delete_item():
             cache.remove(item_id)
             print_error(f"Item {item_id} not found (removed from local cache)")
         elif response.status_code == 409:
-            # Conflict: server version is newer – refresh cache and retry deletion
-            print_error(
-                f"Conflict detected for item {item_id}. Refreshing cache and retrying delete..."
-            )
+            print_error(f"Conflict detected for item {item_id}. Refreshing cache and retrying delete...")
             if _refresh_cache_from_server():
-                # After refresh, retry deletion (call recursively)
                 delete_item()
             else:
                 print_error("Could not refresh cache. Please try again later.")
@@ -412,48 +387,55 @@ def delete_item():
         print_error("Could not connect to server")
 
 
-# Stubs and help
 def history():
-    print("Not implemented")
+    console.print("[yellow]History command not yet implemented.[/yellow]")
 
 
 def version():
-    print("Not implemented")
+    console.print("[yellow]Version command not yet implemented.[/yellow]")
+
+
+def export_items():
+    console.print("[yellow]Export command not yet implemented.[/yellow]")
+
+
+def import_items():
+    console.print("[yellow]Import command not yet implemented.[/yellow]")
+
+
+def tui():
+    from tui import main as tui_main
+    tui_main()
 
 
 def help():
-    print(
+    console.print(
         """
-GophKeeper CLI - available commands:
+[bold]GophKeeper CLI - available commands:[/bold]
 
-  health    check if the server is running
-  register  register a new user
-  login     login to your account
+  [cyan]health[/cyan]    check if the server is running
+  [cyan]register[/cyan]  register a new user
+  [cyan]login[/cyan]     login to your account
 
-  add       add a new item (--type password|card|text|binary --meta key=value)
-  list      list all items (from cache; use 'list --refresh' to pull from server)
-  get <id>  get and decrypt an item by ID
-  delete <id>  delete an item by ID
+  [cyan]add[/cyan]       add a new item (--type password|card|text|binary --meta key=value)
+  [cyan]list[/cyan]      list all items (from cache; use 'list --refresh' to pull from server)
+  [cyan]get[/cyan]       get and decrypt an item by ID
+  [cyan]delete[/cyan]    delete an item by ID
 
-  history   view history of changes
-  version   show version and build date
-  tui       launch the interactive terminal UI (menu-driven)
-  help      show this help message
+  [cyan]history[/cyan]   view history of changes (stub)
+  [cyan]version[/cyan]   show version and build date (stub)
+  [cyan]export[/cyan]    export cache to JSON file (stub)
+  [cyan]import[/cyan]    import items from JSON file (stub)
+  [cyan]tui[/cyan]       launch the interactive terminal UI (menu-driven)
+  [cyan]help[/cyan]      show this help message
 
-Usage: python cli.py <command> [args...]
-Examples:
+[bold]Usage:[/bold] python cli.py <command> [args...]
+[bold]Examples:[/bold]
   python cli.py add --type text --content "my secret" --meta note=test
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
 """
     )
-
-
-def tui():
-    """Launch the interactive terminal UI (menu-driven alternative to the CLI)."""
-    from tui import main as tui_main
-
-    tui_main()
 
 
 COMMANDS = {
@@ -466,6 +448,8 @@ COMMANDS = {
     "delete": delete_item,
     "history": history,
     "version": version,
+    "export": export_items,
+    "import": import_items,
     "tui": tui,
     "help": help,
 }
@@ -473,15 +457,13 @@ COMMANDS = {
 
 def main():
     if len(sys.argv) < 2:
-        print("No command provided. Run 'python cli.py help' to see available commands")
+        console.print("[red]No command provided. Run 'python cli.py help' to see available commands[/red]")
         sys.exit(1)
 
     command = sys.argv[1].lower()
 
     if command not in COMMANDS:
-        print(
-            f"Unknown command: '{command}'. Run 'python cli.py help' to see available commands"
-        )
+        console.print(f"[red]Unknown command: '{command}'. Run 'python cli.py help' to see available commands[/red]")
         sys.exit(1)
 
     COMMANDS[command]()
