@@ -122,13 +122,14 @@ def test_update_otp_with_valid_secret(mock_update, mock_get, override_auth):
     )
     mock_update.return_value = updated
 
-    payload = {"content": ANOTHER_VALID_OTP_SECRET, "metadata": {}, "version": 1}
+    content_b64 = base64.b64encode(ANOTHER_VALID_OTP_SECRET.encode()).decode()
+    payload = {"content": content_b64, "metadata": {}, "version": 1}
     response = client.put("/items/1", json=payload)
 
     assert response.status_code == 200
     data = response.json()
     assert data["version"] == 2
-    assert data["content"] == ANOTHER_VALID_OTP_SECRET
+    assert data["content"] == content_b64
 
 
 @patch("app.repositories.item_repository.get_item_by_id")
