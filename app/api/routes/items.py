@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.validators import is_valid_otp_secret
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
-from app.models.models import User
+from app.models.models import DataType, User
 from app.repositories import item_repository
 from app.schemas.item import (
     ItemCreateRequest,
@@ -28,6 +29,12 @@ async def create_item(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new encrypted item for the authenticated user."""
+    if item_data.type == DataType.otp and not is_valid_otp_secret(item_data.content):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="OTP secret must be a valid base32-encoded string (minimum 16 bytes after decoding)",
+        )
+
     item = await item_repository.create_item(
         db=db,
         user_id=current_user.id,
@@ -124,6 +131,22 @@ async def update_item(
     Update an existing item.
     Returns 409 Conflict if the client version is stale.
     """
+    # Fetch current item to know its type
+    existing_item = await item_repository.get_item_by_id(db, item_id, current_user.id)
+    if existing_item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+        )
+
+    # Validate OTP secret if type is OTP
+    if existing_item.type == DataType.otp and not is_valid_otp_secret(
+        update_data.content
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="OTP secret must be a valid base32-encoded string (minimum 16 bytes after decoding)",
+        )
+
     try:
         item = await item_repository.update_item(
             db=db,
@@ -136,14 +159,10 @@ async def update_item(
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
-        # Conflict: client version does not match server version.
-        # We can optionally include the current version in the response body.
-        # We'll fetch the current item to get its version.
         current_item = await item_repository.get_item_by_id(
             db, item_id, current_user.id
         )
         if current_item is None:
-            # Should not happen if LookupError was not raised, but just in case.
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
             )
@@ -193,9 +212,7 @@ async def sync_items(
     Client sends a list of {id, version} it currently holds.
     Server returns only items where the server version is greater than the client version.
     """
-    # If the client sends no items, we treat it as "send me everything" (since_version = 0).
     if not sync_data.items:
-        # Return all items
         items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
         updates = [
             SyncUpdateItem(
@@ -209,15 +226,7 @@ async def sync_items(
         ]
         return SyncResponse(updates=updates)
 
-    # For each item, we need to check if server version > client version.
-    # We can use a set of ids to reduce the number of queries.
-    # But we'll do a single query using a filter on version per item.
-    # However, get_items_changed_since returns all items with version > since_version,
-    # but that's global, not per item. That method is not suitable here.
-    # Instead, we'll fetch all items for the user and filter in Python.
-    # For a small number of items (<1000), this is fine.
     all_items = await item_repository.get_items_by_user(db=db, user_id=current_user.id)
-    # Build a dict from client items
     client_versions = {item.id: item.version for item in sync_data.items}
 
     updates = []
