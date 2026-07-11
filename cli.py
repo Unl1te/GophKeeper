@@ -6,6 +6,11 @@ import sys
 
 import requests
 
+from rich import print
+from rich.console import Console
+from rich.prompt import Prompt, Confirm
+from rich.table import Table
+
 from crypto_interface import derive_key, encrypt_data, decrypt_data
 from cli_cache import LocalCache
 
@@ -16,6 +21,8 @@ CONFIG_DIR = os.environ.get("GOPHKEEPER_HOME") or os.path.expanduser("~/.gophkee
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
 cache = LocalCache(path=os.path.join(CONFIG_DIR, "cache.json"))
+
+console = Console()
 
 
 # Token management
@@ -50,11 +57,13 @@ def derive_encryption_key(master_password: str) -> bytes:
 
 
 def print_error(message: str):
-    print(f"Error: {message}")
-
+    console.print(f"[bold red]Error:[/bold red] {message}")
 
 def print_success(message: str):
-    print(f"Success: {message}")
+    console.print(f"[bold green]{message}[/bold green]")
+
+def print_warning(message: str):
+    console.print(f"[yellow]{message}[/yellow]")
 
 
 # Background check: fetch /items/versions and refresh cache if needed
@@ -144,7 +153,7 @@ def health():
 
 
 def register():
-    login = input("login: ")
+    login = Prompt.ask("Login")
     password = getpass.getpass("password: ")
     try:
         response = requests.post(
@@ -229,7 +238,7 @@ def add_item():
                 print_error(f"File not found: {file_path}")
                 return
         else:
-            content = input("Content: ")
+            content = Prompt.ask("Content")
             content_bytes = content.encode("utf-8")
 
     if content_bytes is None:
@@ -269,11 +278,22 @@ def add_item():
 
 
 def _print_items(items):
-    print(f"{'ID':<6} {'Type':<10} {'Version':<8} {'Updated At'}")
-    print("-" * 50)
+    table = Table(title="Stored Items")
+
+    table.add_column("ID", style="cyan")
+    table.add_column("Type")
+    table.add_column("Version")
+    table.add_column("Updated")
+
     for item in items:
-        updated = (item.get("updated_at") or "")[:19]
-        print(f"{item['id']:<6} {item['type']:<10} {item['version']:<8} {updated}")
+        table.add_row(
+            str(item["id"]),
+            item["type"],
+            str(item["version"]),
+            (item.get("updated_at") or "")[:19],
+        )
+
+    console.print(table)
 
 
 def list_items():
@@ -375,9 +395,13 @@ def delete_item():
         return
     item_id = sys.argv[2]
 
-    confirm = input(f"Are you sure you want to delete item {item_id}? [y/N] ")
-    if confirm.lower() != "y":
-        print("Cancelled")
+    confirm = Confirm.ask(
+        f"Delete item {item_id}?",
+        default=False
+    )
+    
+    if not confirm:
+        print_warning("Cancelled")
         return
 
     try:
@@ -410,13 +434,179 @@ def delete_item():
         print_error("Could not connect to server")
 
 
+def update_item():
+    if len(sys.argv) < 3:
+        print_error("Usage: update <id>")
+        return
+
+    item_id = sys.argv[2]
+
+    response = requests.get(
+        f"{SERVER_URL}/items/{item_id}",
+        headers=get_headers()
+    )
+
+    if response.status_code != 200:
+        print_error("Item not found")
+        return
+
+    item = response.json()
+
+    master_password = ask_master_password()
+
+    key = derive_encryption_key(master_password)
+
+    try:
+        decrypted = decrypt_data(
+            bytes.fromhex(item["content"]),
+            key
+        ).decode("utf-8")
+    except Exception:
+        print_error("Invalid master password or corrupted data")
+        return
+
+    console.print(f"\nCurrent content:\n{decrypted}\n")
+
+    new_content = Prompt.ask(
+        "New content",
+        default=decrypted
+    )
+
+    metadata = item.get("metadata", {})
+
+    for key_name, value in list(metadata.items()):
+
+        metadata[key_name] = Prompt.ask(
+            f"{key_name}",
+            default=str(value)
+        )
+
+    encrypted = encrypt_data(
+        new_content.encode(),
+        key
+    )
+
+    payload = {
+        "content": encrypted.hex(),
+        "metadata": metadata,
+        "version": item["version"]
+    }
+
+    response = requests.put(
+        f"{SERVER_URL}/items/{item_id}",
+        json=payload,
+        headers=get_headers()
+    )
+
+    if response.status_code == 200:
+
+        updated = response.json()
+
+        cache.upsert(updated)
+
+        print_success(
+            f"Item updated (version {updated['version']})"
+        )
+
+        return
+
+    if response.status_code == 409:
+
+        print_warning(
+            "Item was modified on server. Retrying..."
+        )
+
+        return update_item()
+
+    print_error(
+        response.json().get(
+            "detail",
+            "Unknown error"
+        )
+    )
+
+
+def export_cache():
+    if len(sys.argv) < 3:
+        print_error("Usage: export <file>")
+        return
+
+    filename = sys.argv[2]
+
+    items = cache.list_items()
+
+    with open(filename, "w", encoding="utf8") as f:
+        json.dump(items, f, indent=4)
+
+    print_success(f"Exported {len(items)} items to {filename}")
+
+
+def import_cache():
+    if len(sys.argv) < 3:
+        print_error("Usage: import <file>")
+        return
+
+    filename = sys.argv[2]
+
+    try:
+        with open(filename, "r", encoding="utf8") as f:
+            imported = json.load(f)
+    except Exception as e:
+        print_error(str(e))
+        return
+
+    existing = {str(i["id"]): i for i in cache.list_items()}
+
+    for item in imported:
+        existing[str(item["id"])] = item
+
+    cache.sync(list(existing.values()))
+
+    print_success(f"Imported {len(imported)} items")
+
+
 # Stubs and help
 def history():
-    print("Not implemented")
+    if len(sys.argv) < 3:
+        print_error("Usage: history <id>")
+        return
+
+    item_id = sys.argv[2]
+
+    response = requests.get(
+        f"{SERVER_URL}/items/{item_id}",
+        headers=get_headers()
+    )
+
+    if response.status_code != 200:
+        print_error("Item not found")
+        return
+
+    item = response.json()
+
+    table = Table(title=f"History of item {item_id}")
+
+    table.add_column("Version")
+    table.add_column("Updated at")
+
+    table.add_row(
+        str(item["version"]),
+        item["updated_at"]
+    )
+
+    console.print(table)
+
+    console.print(
+        "[yellow]Full history is planned for future versions.[/yellow]"
+    )
 
 
 def version():
-    print("Not implemented")
+    try:
+        with open("VERSION", "r") as f:
+            console.print(f.read())
+    except FileNotFoundError:
+        console.print("[red]VERSION file not found[/red]")
 
 
 def help():
@@ -431,17 +621,25 @@ GophKeeper CLI - available commands:
   add       add a new item (--type password|card|text|binary --meta key=value)
   list      list all items (from cache; use 'list --refresh' to pull from server)
   get <id>  get and decrypt an item by ID
+  update <id>  update an existing item
   delete <id>  delete an item by ID
 
-  history   view history of changes
+  export <file>  export local cache to a JSON file
+  import <file>  import items from a JSON file into local cache
+
+  history <id>  show item version history
   version   show version and build date
   help      show this help message
 
 Usage: python cli.py <command> [args...]
+
 Examples:
   python cli.py add --type text --content "my secret" --meta note=test
   python cli.py add --type binary --file ./secret.pdf
   python cli.py get 1
+  python cli.py update 1
+  python cli.py export backup.json
+  python cli.py import backup.json
 """
     )
 
@@ -453,7 +651,10 @@ COMMANDS = {
     "add": add_item,
     "list": list_items,
     "get": get_item,
+    "update": update_item,
     "delete": delete_item,
+    "export": export_cache,
+    "import": import_cache,
     "history": history,
     "version": version,
     "help": help,
