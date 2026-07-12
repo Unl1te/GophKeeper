@@ -33,6 +33,8 @@ def _item(item_id, version=1, type="text"):
 def test_list_pulls_from_server_and_populates_cache(
     cli, requests_mock, monkeypatch, capsys
 ):
+    """Test that list command pulls fresh data from server."""
+    requests_mock.get(f"{SERVER}/items/versions", json=[{"id": 1, "version": 1}])
     requests_mock.get(f"{SERVER}/items", json=[_item(1), _item(2, version=3)])
     monkeypatch.setattr(sys, "argv", ["cli.py", "list"])
 
@@ -43,35 +45,14 @@ def test_list_pulls_from_server_and_populates_cache(
     assert [i["id"] for i in cli.cache.list_items()] == [1, 2]
 
 
-def test_list_reads_cache_without_hitting_server(
-    cli, requests_mock, monkeypatch, capsys
-):
-    cli.cache.sync([_item(5)])
-    monkeypatch.setattr(sys, "argv", ["cli.py", "list"])
-
-    cli.list_items()
-
-    out = capsys.readouterr().out
-    assert "5" in out
-    # cache was non-empty and no --refresh -> server must not be called
-    assert requests_mock.call_count == 0
-
-
-def test_list_refresh_updates_cache(cli, requests_mock, monkeypatch, capsys):
-    cli.cache.sync([_item(5)])
-    requests_mock.get(f"{SERVER}/items", json=[_item(8)])
-    monkeypatch.setattr(sys, "argv", ["cli.py", "list", "--refresh"])
-
-    cli.list_items()
-
-    assert [i["id"] for i in cli.cache.list_items()] == [8]
-    assert requests_mock.call_count == 1
-
-
 def test_list_offline_falls_back_to_cache(cli, requests_mock, monkeypatch, capsys):
+    """Test that list falls back to cached data when offline."""
     cli.cache.sync([_item(7, type="card")])
+    requests_mock.get(
+        f"{SERVER}/items/versions", exc=requests.exceptions.ConnectionError
+    )
     requests_mock.get(f"{SERVER}/items", exc=requests.exceptions.ConnectionError)
-    monkeypatch.setattr(sys, "argv", ["cli.py", "list", "--refresh"])
+    monkeypatch.setattr(sys, "argv", ["cli.py", "list"])
 
     cli.list_items()
 
@@ -81,6 +62,7 @@ def test_list_offline_falls_back_to_cache(cli, requests_mock, monkeypatch, capsy
 
 
 def test_delete_removes_item_from_cache(cli, requests_mock, monkeypatch):
+    """Test that delete command removes the item from local cache."""
     cli.cache.sync([_item(9)])
     requests_mock.delete(f"{SERVER}/items/9", status_code=204)
     monkeypatch.setattr("builtins.input", lambda *a: "y")

@@ -161,3 +161,59 @@ Screenshots to capture for the report:
 <img width="1371" height="356" alt="26-06-30 231527" src="https://github.com/user-attachments/assets/34bba2eb-1ad9-4428-a6ca-37e84e162326" />
 
 ---
+
+# Week 4
+
+## What was added
+
+- **`GET /items/versions`** — lightweight `id / version / updated_at` list so a
+  client can check for changes without downloading full data.
+- **Incremental `POST /items/sync`** — the client sends the `{id, version}` pairs
+  it holds; the server returns only items whose version is newer.
+- **Version conflict resolution (Last-Write-Wins)** — `PUT /items/{id}` returns
+  `409 Conflict` with the current version when the client's version is stale.
+- **CLI background check & auto conflict resolution** (Dzhamilia) — `list` calls
+  `/items/versions` and refreshes the cache; on a `409` during `get` / `delete`
+  the CLI refreshes and retries automatically ("Conflict detected … retrying").
+- **Two-client demo script** `demo_two_clients.sh` (Ivan) — runs two independent
+  CLI instances for one account, changes an item on one, and shows it appear on
+  the other; also proves item isolation between accounts.
+- **Sync & crypto tests** — `tests/test_cli_sync_integration.py`, a two-client
+  simulation, and performance tests for `encrypt_data` / `decrypt_data`.
+
+## Two-client demonstration
+
+- Client A and Client B log into the **same** account using separate config
+  directories (via `GOPHKEEPER_HOME`), so they behave like two devices.
+- Client A creates an item and then modifies it (`PUT /items/{id}` with the
+  current version → the server bumps the version).
+- Client B runs `list --refresh` / `get` and sees the updated content and the new
+  version — the background check picks up the change.
+- A second account (`bob`) requesting the same item id gets `404`, proving items
+  are private per account.
+
+## How Week 4 extends the MVP (vs Week 3)
+
+- Week 3 gave a single client full CRUD over encrypted items. Week 4 makes it
+  **multi-client**: a change made on one client becomes visible on another.
+- Conflicts are resolved with a clear policy (Last-Write-Wins + `409`), and the
+  client detects changes cheaply via `/items/versions` instead of re-downloading
+  everything.
+
+## Report material (Week 4)
+
+New features this week: version model + conflict resolution (Last-Write-Wins),
+background update check (`/items/versions`), incremental sync (`/items/sync`), and
+a two-client demo.
+
+To include in the report:
+
+- [X] Screenshot: two CLI clients — a change on Client A appearing on Client B.
+<img width="1865" height="516" alt="two_client_demo" src="https://github.com/user-attachments/assets/835b74b5-d5c9-4c54-8083-693bd6cf9298" />
+
+- [X] Screenshot: a `409` conflict being detected and auto-resolved.
+<img width="1415" height="100" alt="conflict_demo" src="https://github.com/user-attachments/assets/f95dc6c6-e30c-4963-8559-caf6bdfa1eee" />
+
+- [X] Measurements vs baseline (Industrial track): `encrypt_data` / `decrypt_data`
+      timings on large payloads (e.g. 10 MB) from the crypto performance tests.
+<img width="1512" height="417" alt="crypto_perf" src="https://github.com/user-attachments/assets/86c9e0ef-ed9c-4255-a62e-3cfab54e875c" />

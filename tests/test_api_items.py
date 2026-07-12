@@ -44,7 +44,6 @@ def test_create_item_success(mock_create, override_auth):
     )
     mock_create.return_value = mock_item
 
-    # "encrypted_data" is passed as a Base64-encoded string
     payload = {"type": "text", "content": "ZW5jcnlwdGVkX2RhdGE=", "metadata": {}}
     response = client.post("/items/", json=payload)
 
@@ -94,9 +93,20 @@ def test_get_single_item_success(mock_get, override_auth):
     assert response.json()["content"] == "secret"
 
 
+@patch("app.repositories.item_repository.get_item_by_id")
 @patch("app.repositories.item_repository.update_item")
-def test_update_item_success(mock_update, override_auth):
+def test_update_item_success(mock_update, mock_get, override_auth):
     """Test successful item update."""
+    mock_get.return_value = Item(
+        id=42,
+        user_id=1,
+        type=DataType.text,
+        content=b"old_secret",
+        version=1,
+        updated_at=datetime.now(timezone.utc),
+        metadata_={},
+    )
+
     mock_item = Item(
         id=42,
         user_id=1,
@@ -109,7 +119,7 @@ def test_update_item_success(mock_update, override_auth):
     mock_update.return_value = mock_item
 
     payload = {
-        "content": "bmV3X3NlY3JldA==",  # "new_secret" in Base64
+        "content": "bmV3X3NlY3JldA==",
         "version": 1,
         "metadata": {},
     }
@@ -120,16 +130,30 @@ def test_update_item_success(mock_update, override_auth):
 
 
 @patch("app.repositories.item_repository.update_item")
-def test_update_item_conflict_409(mock_update, override_auth):
+@patch("app.repositories.item_repository.get_item_by_id")
+def test_update_item_conflict_409(mock_get_by_id, mock_update, override_auth):
     """Test update failure due to version conflict."""
-    # ValueError triggers 409 Conflict in items.py
+    current_item = Item(
+        id=42,
+        user_id=1,
+        type=DataType.text,
+        content=b"old_content",
+        version=2,
+        updated_at=datetime.now(timezone.utc),
+        metadata_={},
+    )
+    mock_get_by_id.return_value = current_item
+
     mock_update.side_effect = ValueError("Version conflict detected")
 
     payload = {"content": "bmV3X3NlY3JldA==", "version": 1, "metadata": {}}
     response = client.put("/items/42", json=payload)
 
     assert response.status_code == 409
-    assert "Version conflict" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert "Version conflict" in detail["message"]
+    assert "current_version" in detail
+    assert detail["current_version"] == 2
 
 
 @patch("app.repositories.item_repository.delete_item")
