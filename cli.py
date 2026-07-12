@@ -7,11 +7,11 @@ from datetime import datetime, timezone
 
 import requests
 from rich.console import Console
-from rich.table import Table
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 
-from crypto_interface import derive_key, encrypt_data, decrypt_data
 from cli_cache import LocalCache
+from crypto_interface import decrypt_data, derive_key, encrypt_data
 
 SERVER_URL = os.environ.get("GOPHKEEPER_SERVER", "http://localhost")
 # Config dir holds the token and the local cache. Override with GOPHKEEPER_HOME
@@ -220,6 +220,7 @@ def login():
 
 
 def add_item():
+    content = ""  # Prevent UnboundLocalError
     parser = argparse.ArgumentParser(prog="cli.py add", add_help=False)
     parser.add_argument(
         "--type", required=True, choices=["password", "card", "text", "binary"]
@@ -243,11 +244,13 @@ def add_item():
         try:
             with open(args.file, "rb") as f:
                 content_bytes = f.read()
+            content = args.file
         except FileNotFoundError:
             print_error(f"File not found: {args.file}")
             return
     elif args.content:
-        content_bytes = args.content.encode("utf-8")
+        content = args.content
+        content_bytes = content.encode("utf-8")
     else:
         if args.type == "binary":
             file_path = Prompt.ask("Path to file")
@@ -257,6 +260,7 @@ def add_item():
             try:
                 with open(file_path, "rb") as f:
                     content_bytes = f.read()
+                content = file_path
             except FileNotFoundError:
                 print_error(f"File not found: {file_path}")
                 return
