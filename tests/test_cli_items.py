@@ -1,9 +1,29 @@
+import json
+import sys
 from unittest.mock import patch
 
+import pytest
+
 import cli
+from cli_cache import LocalCache
+
+SERVER = "http://localhost"
+
+
+@pytest.fixture
+def cli_instance(tmp_path, monkeypatch):
+    """Import the CLI with an isolated cache and no real auth."""
+    import cli as cli_module
+
+    cli_module.cache = LocalCache(path=str(tmp_path / "cache.json"))
+    monkeypatch.setattr(
+        cli_module, "get_headers", lambda: {"Authorization": "Bearer t"}
+    )
+    return cli_module
+
 
 # ==========================================
-# CLI CRUD INTEGRATION TESTS
+# WEEK 4: CLI BASIC CRUD TESTS (PRESERVED)
 # ==========================================
 
 
@@ -92,3 +112,157 @@ def test_cli_delete_item_success(mock_token, mock_input, requests_mock, capsys):
 
     captured = capsys.readouterr()
     assert "deleted" in captured.out
+
+
+# ==========================================
+# WEEK 5: NEW INTEGRATION TESTS FOR NEW COMMANDS
+# ==========================================
+
+
+@patch("sys.argv", ["cli.py", "version"])
+def test_cli_version(cli_instance, capsys):
+    """Test that the version command prints the version string."""
+    cli.COMMANDS["version"]()
+    captured = capsys.readouterr()
+    assert len(captured.out) > 0
+
+
+@patch("sys.argv", ["cli.py", "history", "42"])
+def test_cli_history(cli_instance, requests_mock, capsys):
+    """Test retrieving and displaying version history for an item."""
+    requests_mock.get(
+        f"{SERVER}/items/42",
+        status_code=200,
+        json={
+            "id": 42,
+            "type": "text",
+            "version": 3,
+            "content": "deadbeef",
+            "updated_at": "2026-01-01T00:00:00Z",
+        },
+    )
+
+    cli.COMMANDS["history"]()
+
+    captured = capsys.readouterr()
+    assert "Version" in captured.out or "3" in captured.out
+
+
+@patch("sys.argv", ["cli.py", "update", "42"])
+@patch("getpass.getpass", return_value="master_password")
+@patch("cli.decrypt_data", return_value=b"old_secret")
+@patch("cli.encrypt_data", return_value=b"new_secret")
+@patch("builtins.input", return_value="new_secret")
+def test_cli_update_success(
+    mock_input, mock_encrypt, mock_decrypt, mock_getpass, cli_instance, requests_mock
+):
+    """Test successful update of an existing item."""
+    requests_mock.get(
+        f"{SERVER}/items/42",
+        status_code=200,
+        json={
+            "id": 42,
+            "type": "text",
+            "version": 1,
+            "content": "deadbeef",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "metadata": {},
+        },
+    )
+    requests_mock.put(
+        f"{SERVER}/items/42",
+        status_code=200,
+        json={
+            "id": 42,
+            "type": "text",
+            "version": 2,
+            "content": "beefdead",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "metadata": {},
+        },
+    )
+
+    cli.COMMANDS["update"]()
+
+    assert cli_instance.cache.get(42)["version"] == 2
+
+
+@patch("sys.argv", ["cli.py", "update", "42"])
+@patch("getpass.getpass", return_value="master_password")
+@patch("cli.decrypt_data", return_value=b"old_secret")
+@patch("cli.encrypt_data", return_value=b"new_secret")
+@patch("builtins.input", return_value="new_secret")
+def test_cli_update_conflict_and_retry(
+    mock_input, mock_encrypt, mock_decrypt, mock_getpass, cli_instance, requests_mock
+):
+    """Test automatic conflict resolution (retry on 409) during update."""
+    requests_mock.get(
+        f"{SERVER}/items/42",
+        status_code=200,
+        json={
+            "id": 42,
+            "type": "text",
+            "version": 1,
+            "content": "deadbeef",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "metadata": {},
+        },
+    )
+
+    adapter = requests_mock.register_uri(
+        "PUT",
+        f"{SERVER}/items/42",
+        [
+            {"json": {"detail": "Conflict"}, "status_code": 409},
+            {
+                "json": {
+                    "id": 42,
+                    "type": "text",
+                    "version": 2,
+                    "content": "beefdead",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                    "metadata": {},
+                },
+                "status_code": 200,
+            },
+        ],
+    )
+
+    cli.COMMANDS["update"]()
+
+    assert adapter.call_count == 2
+
+
+def test_cli_export(cli_instance, tmp_path, monkeypatch):
+    """Test exporting local cache to a plain JSON file."""
+    cli_instance.cache.sync(
+        [{"id": 42, "type": "text", "version": 1, "updated_at": "2026-01-01T00:00:00Z"}]
+    )
+    export_file = tmp_path / "export.json"
+
+    monkeypatch.setattr(sys, "argv", ["cli.py", "export", str(export_file)])
+
+    cli.COMMANDS["export"]()
+
+    assert export_file.exists()
+    with open(export_file, "r") as f:
+        data = json.load(f)
+    assert len(data) == 1
+    assert data[0]["id"] == 42
+
+
+def test_cli_import(cli_instance, tmp_path, monkeypatch):
+    """Test importing and merging items from a JSON file into local cache."""
+    import_file = tmp_path / "import.json"
+    import_data = [
+        {"id": 99, "type": "text", "version": 1, "updated_at": "2026-01-01T00:00:00Z"}
+    ]
+
+    with open(import_file, "w") as f:
+        json.dump(import_data, f)
+
+    monkeypatch.setattr(sys, "argv", ["cli.py", "import", str(import_file)])
+
+    cli.COMMANDS["import"]()
+
+    assert cli_instance.cache.get(99) is not None
