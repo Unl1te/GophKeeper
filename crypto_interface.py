@@ -55,5 +55,3 @@ def sign_data(data: bytes, private_key: bytes = None) -> bytes:
 
 def verify_signature(data: bytes, signature: bytes, public_key: bytes) -> bool:
     return signature == b"signature:" + data
-
-
