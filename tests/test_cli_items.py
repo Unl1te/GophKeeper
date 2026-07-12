@@ -32,9 +32,7 @@ def cli_instance(tmp_path, monkeypatch):
 @patch("cli.load_token", return_value="fake_jwt_token")
 def test_cli_add_item_success(mock_token, mock_getpass, requests_mock, capsys):
     """Test successful creation and encryption of an item via CLI."""
-    requests_mock.post(
-        "http://localhost/items", status_code=201, json={"id": 1, "version": 1}
-    )
+    requests_mock.post(f"{SERVER}/items", status_code=201, json={"id": 1, "version": 1})
 
     cli.add_item()
 
@@ -48,12 +46,12 @@ def test_cli_add_item_success(mock_token, mock_getpass, requests_mock, capsys):
 def test_cli_list_items_success(mock_token, requests_mock, capsys):
     """Test displaying list of items in CLI with --refresh to force update."""
     requests_mock.get(
-        "http://localhost/items/versions",
+        f"{SERVER}/items/versions",
         status_code=200,
         json=[{"id": 1, "version": 1}],
     )
     requests_mock.get(
-        "http://localhost/items",
+        f"{SERVER}/items",
         status_code=200,
         json=[
             {
@@ -82,7 +80,7 @@ def test_cli_get_item_success(
 ):
     """Test retrieving and decrypting an item via CLI."""
     requests_mock.get(
-        "http://localhost/items/1",
+        f"{SERVER}/items/1",
         status_code=200,
         json={
             "id": 1,
@@ -115,7 +113,7 @@ def test_cli_delete_item_success(mock_token, mock_input, requests_mock, capsys):
 
 
 # ==========================================
-# WEEK 5: NEW INTEGRATION TESTS FOR NEW COMMANDS
+# WEEK 5: NEW INTEGRATION TESTS FOR NEW COMMANDS (WEEK 5 AC)
 # ==========================================
 
 
@@ -231,6 +229,17 @@ def test_cli_update_conflict_and_retry(
     cli.COMMANDS["update"]()
 
     assert adapter.call_count == 2
+
+
+@patch("sys.argv", ["cli.py", "update", "42"])
+def test_cli_update_not_found(cli_instance, requests_mock, capsys):
+    """Test update failure when the target item is not found (404)."""
+    requests_mock.get(f"{SERVER}/items/42", status_code=404)
+
+    cli.COMMANDS["update"]()
+
+    captured = capsys.readouterr()
+    assert "not found" in captured.out.lower()
 
 
 def test_cli_export(cli_instance, tmp_path, monkeypatch):
