@@ -163,6 +163,7 @@ async def update_item(
             db, item_id, current_user.id
         )
         if current_item is None:
+            # Should not happen if LookupError was not raised, but just in case.
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
             )
