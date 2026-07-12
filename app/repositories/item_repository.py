@@ -100,6 +100,7 @@ async def delete_item(db: AsyncSession, item_id: int, user_id: int) -> None:
     item.updated_at = datetime.now(timezone.utc)
     await db.commit()
 
+
 async def get_items_by_user_with_versions(db: AsyncSession, user_id: int) -> List[Item]:
     """Return all non-deleted items with full data including version."""
     result = await db.execute(

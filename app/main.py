@@ -3,7 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from .api.routes import health_router, items_router, login_router, register_router
+from .api.routes import (
+    health_router,
+    items_router,
+    login_router,
+    register_router,
+    binary_poc,
+)
 from .middleware import RequestLoggingMiddleware
 
 app = FastAPI(
@@ -30,6 +36,7 @@ app.include_router(health_router, prefix="")
 app.include_router(register_router, prefix="")
 app.include_router(login_router, prefix="")
 app.include_router(items_router, prefix="")
+app.include_router(binary_poc.router, prefix="")
 
 web_dir = os.path.join(os.path.dirname(__file__), "..", "web")
 if os.path.isdir(web_dir):
