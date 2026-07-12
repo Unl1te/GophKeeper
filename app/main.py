@@ -8,7 +8,6 @@ from .api.routes import (
     items_router,
     login_router,
     register_router,
-    binary_poc,
 )
 from .middleware import RequestLoggingMiddleware
 
@@ -36,7 +35,6 @@ app.include_router(health_router, prefix="")
 app.include_router(register_router, prefix="")
 app.include_router(login_router, prefix="")
 app.include_router(items_router, prefix="")
-app.include_router(binary_poc.router, prefix="")
 
 web_dir = os.path.join(os.path.dirname(__file__), "..", "web")
 if os.path.isdir(web_dir):
