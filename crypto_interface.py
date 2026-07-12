@@ -1,5 +1,4 @@
 import os
-import pyotp
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -58,13 +57,3 @@ def verify_signature(data: bytes, signature: bytes, public_key: bytes) -> bool:
     return signature == b"signature:" + data
 
 
-def generate_otp_secret() -> str:
-    return pyotp.random_base32()
-
-
-def get_totp_code(secret: str) -> str:
-    return pyotp.TOTP(secret).now()
-
-
-def verify_totp(secret: str, code: str) -> bool:
-    return pyotp.TOTP(secret).verify(code, valid_window=1)
