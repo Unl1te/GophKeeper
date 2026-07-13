@@ -286,6 +286,52 @@ sequenceDiagram
     B-->>B: cache updated, get shows the new content
 ```
 
+### Diagram: update item (CLI)
+
+`update <id>` fetches the item, lets the user edit it, re-encrypts the content
+and sends a `PUT` with the current version (conflicts are auto-resolved).
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as CLI
+    participant K as Crypto layer
+    participant S as Backend
+
+    U->>C: python cli.py update <id>
+    C->>S: GET /items/{id}
+    S-->>C: 200 {content, version}
+    C->>U: ask master password + new content
+    U-->>C: master password, new content
+    C->>K: decrypt old, encrypt new
+    C->>S: PUT /items/{id} {content, metadata, version}
+    alt version is stale
+        S-->>C: 409 Conflict (current version)
+        C->>S: refetch latest, retry
+    else ok
+        S-->>C: 200 {version++}
+        C-->>U: "Item updated (version N)"
+    end
+```
+
+### Diagram: history (CLI)
+
+`history <id>` shows the current version and `updated_at`. Full server-side
+history is planned for the future.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as CLI
+    participant S as Backend
+
+    U->>C: python cli.py history <id>
+    C->>S: GET /items/{id}
+    S-->>C: 200 {version, updated_at}
+    C-->>U: show current version + updated_at
+    Note over C: full server-side history is planned — for now shows the current version
+```
+
 ---
 
 ## 4. Cryptographic Primitives
@@ -347,5 +393,15 @@ scoped to the authenticated user.
 **Encryption boundary.** The CLI encrypts `content` with ChaCha20-Poly1305
 (key derived from the master password) before sending, and decrypts on `get`.
 The backend never sees plaintext — it stores and returns ciphertext only.
+
+**Metadata.** Every item can carry free-form `metadata` — arbitrary `key=value`
+pairs (website, account, bank, etc.). It is stored as a JSON/JSONB column and is
+**not encrypted** (labels/search only, never secrets); it is accepted by
+`POST` / `PUT` and returned in both `list` and `get` responses.
+
+**OTP items.** An `otp`-type item stores a TOTP secret like any other secret —
+encrypted on the client. The one-time code is generated **locally on the client**
+(`otp` / `verify-otp`); the server never sees the secret or computes codes.
+`export` / `import` operate only on the local cache (JSON) and do not sync.
 
 ---
