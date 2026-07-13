@@ -50,7 +50,11 @@ def get_headers():
 
 
 def ask_master_password() -> str:
-    return getpass.getpass("Master password: ")
+    try:
+        return getpass.getpass("Master password: ")
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Master password input cancelled.[/yellow]")
+        raise  # re-raise to let caller handle
 
 
 def derive_encryption_key(master_password: str) -> bytes:
@@ -175,8 +179,20 @@ def health():
 
 
 def register():
-    login = Prompt.ask("login")
-    password = getpass.getpass("password: ")
+    # Prevent registration if already logged in
+    if load_token() is not None:
+        console.print(
+            "[yellow]You are already logged in. Please use 'logout' first to switch accounts.[/yellow]"
+        )
+        return
+
+    try:
+        login = Prompt.ask("login")
+        password = getpass.getpass("password: ")
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Registration cancelled.[/yellow]")
+        return
+
     try:
         response = requests.post(
             f"{SERVER_URL}/register", json={"login": login, "password": password}
@@ -188,6 +204,26 @@ def register():
             )
         elif response.status_code == 409:
             print_error(f"user '{login}' already exists")
+        elif response.status_code == 422:
+            # Try to extract a human-friendly error message
+            try:
+                detail = response.json().get("detail", [])
+                if isinstance(detail, list) and len(detail) > 0:
+                    # Pydantic validation error format
+                    for err in detail:
+                        if err.get("loc") and "password" in err.get("loc", []):
+                            if "string_too_short" in err.get("type", ""):
+                                print_error("Password must be at least 6 characters.")
+                                return
+                            else:
+                                print_error(err.get("msg", "Invalid input."))
+                                return
+                    # If we didn't find a specific message, show the first error
+                    print_error(detail[0].get("msg", "Validation error."))
+                else:
+                    print_error("Invalid input. Please check your data.")
+            except Exception:
+                print_error("Invalid input. Please check your data.")
         else:
             print_error(
                 f"{response.status_code} — {response.json().get('detail', 'something went wrong')}"
@@ -197,8 +233,20 @@ def register():
 
 
 def login():
-    login_input = Prompt.ask("login")
-    password = getpass.getpass("password: ")
+    # Prevent login if already logged in
+    if load_token() is not None:
+        console.print(
+            "[yellow]You are already logged in. Please use 'logout' first to switch accounts.[/yellow]"
+        )
+        return
+
+    try:
+        login_input = Prompt.ask("login")
+        password = getpass.getpass("password: ")
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Login cancelled.[/yellow]")
+        return
+
     try:
         response = requests.post(
             f"{SERVER_URL}/login", json={"login": login_input, "password": password}
@@ -208,6 +256,9 @@ def login():
             token = data.get("access_token")
             save_token(token)
             cache.clear()
+            # Clear history when logging in (different user)
+            if os.path.exists(HISTORY_FILE):
+                os.remove(HISTORY_FILE)
             console.print("[green]Logged in successfully[/green]")
         elif response.status_code == 401:
             print_error("invalid login or password")
@@ -217,6 +268,23 @@ def login():
             )
     except requests.exceptions.ConnectionError:
         print_error("could not connect to server")
+
+
+def logout():
+    if load_token() is None:
+        console.print("[yellow]You are not logged in.[/yellow]")
+        return
+    # Remove token file
+    if os.path.exists(CONFIG_FILE):
+        os.remove(CONFIG_FILE)
+    # Clear cache
+    cache.clear()
+    # Clear history
+    if os.path.exists(HISTORY_FILE):
+        os.remove(HISTORY_FILE)
+    console.print(
+        "[green]Logged out successfully. Token, cache, and history cleared.[/green]"
+    )
 
 
 def add_item():
@@ -265,14 +333,22 @@ def add_item():
                 print_error(f"File not found: {file_path}")
                 return
         else:
-            content = Prompt.ask("Content")
+            try:
+                content = Prompt.ask("Content")
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Content input cancelled.[/yellow]")
+                return
             content_bytes = content.encode("utf-8")
 
     if content_bytes is None:
         print_error("No content provided")
         return
 
-    master_password = ask_master_password()
+    try:
+        master_password = ask_master_password()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled.[/yellow]")
+        return
     key = derive_encryption_key(master_password)
     encrypted = encrypt_data(content_bytes, key)
 
@@ -360,7 +436,11 @@ def get_item():
         if response.status_code == 200:
             item = response.json()
             cache.upsert(item)
-            master_password = ask_master_password()
+            try:
+                master_password = ask_master_password()
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Operation cancelled.[/yellow]")
+                return
             key = derive_encryption_key(master_password)
 
             encrypted_bytes = bytes.fromhex(item["content"])
@@ -464,7 +544,11 @@ def update_item():
         print_error("Could not connect to server")
         return
 
-    master_password = ask_master_password()
+    try:
+        master_password = ask_master_password()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled.[/yellow]")
+        return
     key = derive_encryption_key(master_password)
     try:
         encrypted_bytes = bytes.fromhex(item["content"])
@@ -637,6 +721,7 @@ def help():
   [cyan]health[/cyan]    check if the server is running
   [cyan]register[/cyan]  register a new user
   [cyan]login[/cyan]     login to your account
+  [cyan]logout[/cyan]    logout from your account (clears token, cache, and history)
 
   [cyan]add[/cyan]       add a new item (--type password|card|text|binary --meta key=value)
   [cyan]list[/cyan]      list all items (from cache; use 'list --refresh' to pull from server)
@@ -667,6 +752,7 @@ COMMANDS = {
     "health": health,
     "register": register,
     "login": login,
+    "logout": logout,
     "add": add_item,
     "list": list_items,
     "get": get_item,
