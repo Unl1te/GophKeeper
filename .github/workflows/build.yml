@@ -24,11 +24,6 @@ jobs:
             pyinstaller_args: --onefile --name gophkeeper-windows cli.py
             artifact_name: gophkeeper-windows
             artifact_path: dist/gophkeeper-windows.exe
-          - os: macos-13
-            arch: macos-intel
-            pyinstaller_args: --onefile --name gophkeeper-macos-intel cli.py
-            artifact_name: gophkeeper-macos-intel
-            artifact_path: dist/gophkeeper-macos-intel
           - os: macos-14
             arch: macos-arm64
             pyinstaller_args: --onefile --name gophkeeper-macos-arm64 cli.py
