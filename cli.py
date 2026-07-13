@@ -11,7 +11,14 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from cli_cache import LocalCache
-from crypto_interface import decrypt_data, derive_key, encrypt_data
+from crypto_interface import (
+    decrypt_data,
+    derive_key,
+    encrypt_data,
+    generate_otp_secret,
+    get_totp_code,
+    verify_totp,
+)
 
 SERVER_URL = os.environ.get("GOPHKEEPER_SERVER", "http://localhost")
 # Config dir holds the token and the local cache. Override with GOPHKEEPER_HOME
@@ -291,11 +298,16 @@ def add_item():
     content = ""  # Prevent UnboundLocalError
     parser = argparse.ArgumentParser(prog="cli.py add", add_help=False)
     parser.add_argument(
-        "--type", required=True, choices=["password", "card", "text", "binary"]
+        "--type", required=True, choices=["password", "card", "text", "binary", "otp"]
     )
     parser.add_argument("--meta", action="append", help="metadata in key=value format")
     parser.add_argument("--file", help="read content from file (for binary type)")
-    parser.add_argument("--content", help="content string (for text/password/card)")
+    parser.add_argument("--content", help="content string (for text/password/card/otp)")
+    parser.add_argument(
+        "--generate-secret",
+        action="store_true",
+        help="generate a new OTP secret (only for --type otp)",
+    )
     args, unknown = parser.parse_known_args(sys.argv[2:])
 
     metadata = {}
@@ -308,7 +320,12 @@ def add_item():
                 metadata[pair] = True
 
     content_bytes = None
-    if args.file:
+    if args.type == "otp" and args.generate_secret:
+        # Generate a new OTP secret
+        secret = generate_otp_secret()
+        content = secret
+        content_bytes = secret.encode("utf-8")
+    elif args.file:
         try:
             with open(args.file, "rb") as f:
                 content_bytes = f.read()
@@ -332,6 +349,17 @@ def add_item():
             except FileNotFoundError:
                 print_error(f"File not found: {file_path}")
                 return
+        elif args.type == "otp":
+            # For OTP, if no content and no --generate-secret, prompt for secret or generate
+            if Confirm.ask("[yellow]Generate a new OTP secret?[/yellow]", default=True):
+                secret = generate_otp_secret()
+                content = secret
+                content_bytes = secret.encode("utf-8")
+                console.print(f"[green]Generated secret: {secret}[/green]")
+            else:
+                secret = Prompt.ask("Enter OTP secret (base32)")
+                content = secret
+                content_bytes = secret.encode("utf-8")
         else:
             try:
                 content = Prompt.ask("Content")
@@ -371,6 +399,10 @@ def add_item():
             print_success(
                 f"Item created (id: {data['id']}, version: {data['version']})"
             )
+            if args.type == "otp":
+                console.print(
+                    "[yellow]Note: You can generate TOTP codes with 'otp <id>'[/yellow]"
+                )
         elif response.status_code == 401:
             print_error("Not authenticated. Please login first.")
         else:
@@ -652,6 +684,104 @@ def history():
     console.print(table)
 
 
+def otp_command():
+    """Generate and display the current TOTP code for an OTP item."""
+    if len(sys.argv) < 3:
+        print_error("Usage: python cli.py otp <id>")
+        return
+    item_id = sys.argv[2]
+
+    try:
+        response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
+        if response.status_code == 404:
+            print_error(f"Item {item_id} not found")
+            return
+        elif response.status_code == 401:
+            print_error("Not authenticated. Please login first.")
+            return
+        elif response.status_code != 200:
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
+            return
+        item = response.json()
+    except requests.exceptions.ConnectionError:
+        print_error("Could not connect to server")
+        return
+
+    # Decrypt the content (OTP secret)
+    try:
+        master_password = ask_master_password()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled.[/yellow]")
+        return
+    key = derive_encryption_key(master_password)
+    try:
+        encrypted_bytes = bytes.fromhex(item["content"])
+        decrypted = decrypt_data(encrypted_bytes, key).decode("utf-8")
+    except Exception:
+        print_error("Failed to decrypt item. Wrong master password or corrupted data?")
+        return
+
+    # Generate TOTP code
+    try:
+        code = get_totp_code(decrypted)
+        console.print(f"[bold green]Current TOTP code: {code}[/bold green]")
+    except Exception as e:
+        print_error(f"Failed to generate TOTP code: {e}")
+
+
+def verify_otp_command():
+    """Verify a TOTP code against an OTP item."""
+    if len(sys.argv) < 4:
+        print_error("Usage: python cli.py verify-otp <id> <code>")
+        return
+    item_id = sys.argv[2]
+    code = sys.argv[3]
+
+    try:
+        response = requests.get(f"{SERVER_URL}/items/{item_id}", headers=get_headers())
+        if response.status_code == 404:
+            print_error(f"Item {item_id} not found")
+            return
+        elif response.status_code == 401:
+            print_error("Not authenticated. Please login first.")
+            return
+        elif response.status_code != 200:
+            print_error(
+                f"{response.status_code} — {response.json().get('detail', 'Unknown error')}"
+            )
+            return
+        item = response.json()
+    except requests.exceptions.ConnectionError:
+        print_error("Could not connect to server")
+        return
+
+    # Decrypt the content (OTP secret)
+    try:
+        master_password = ask_master_password()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled.[/yellow]")
+        return
+    key = derive_encryption_key(master_password)
+    try:
+        encrypted_bytes = bytes.fromhex(item["content"])
+        decrypted = decrypt_data(encrypted_bytes, key).decode("utf-8")
+    except Exception:
+        print_error("Failed to decrypt item. Wrong master password or corrupted data?")
+        return
+
+    # Verify TOTP code
+    try:
+        valid = verify_totp(decrypted, code)
+        if valid:
+            console.print("[green]Code is valid.[/green]")
+        else:
+            console.print("[red]Code is invalid or expired.[/red]")
+    except Exception as e:
+        print_error(f"Failed to verify code: {e}")
+
+
 def version():
     console.print(f"[bold]GophKeeper CLI[/bold] v{VERSION} (built {BUILD_DATE})")
 
@@ -723,7 +853,7 @@ def help():
   [cyan]login[/cyan]     login to your account
   [cyan]logout[/cyan]    logout from your account (clears token, cache, and history)
 
-  [cyan]add[/cyan]       add a new item (--type password|card|text|binary --meta key=value)
+  [cyan]add[/cyan]       add a new item (--type password|card|text|binary|otp --meta key=value)
   [cyan]list[/cyan]      list all items (from cache; use 'list --refresh' to pull from server)
   [cyan]get[/cyan]       get and decrypt an item by ID
   [cyan]delete[/cyan]    delete an item by ID
@@ -733,6 +863,8 @@ def help():
   [cyan]version[/cyan]   show version and build date
   [cyan]export[/cyan]    export cache to JSON file
   [cyan]import[/cyan]    import items from JSON file
+  [cyan]otp[/cyan]       generate and display current TOTP code for an OTP item
+  [cyan]verify-otp[/cyan] verify a TOTP code against an OTP item
   [cyan]tui[/cyan]       launch the interactive terminal UI (menu-driven)
   [cyan]help[/cyan]      show this help message
 
@@ -744,6 +876,8 @@ def help():
   python cli.py update 1
   python cli.py export backup.json
   python cli.py import backup.json
+  python cli.py otp 1
+  python cli.py verify-otp 1 123456
 """
     )
 
@@ -759,6 +893,8 @@ COMMANDS = {
     "delete": delete_item,
     "update": update_item,
     "history": history,
+    "otp": otp_command,
+    "verify-otp": verify_otp_command,
     "version": version,
     "export": export_items,
     "import": import_items,
