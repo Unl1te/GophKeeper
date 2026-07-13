@@ -217,3 +217,51 @@ To include in the report:
 - [X] Measurements vs baseline (Industrial track): `encrypt_data` / `decrypt_data`
       timings on large payloads (e.g. 10 MB) from the crypto performance tests.
 <img width="1512" height="417" alt="crypto_perf" src="https://github.com/user-attachments/assets/86c9e0ef-ed9c-4255-a62e-3cfab54e875c" />
+
+---
+
+# Week 5
+
+## What was added
+
+- **Full CLI UX** — the client now uses `rich` for coloured output, tables and
+  interactive prompts, plus a **`tui`** command (menu-driven terminal UI).
+- **New commands** — `update` (interactive edit), `history` (local change
+  history of an item), and `logout` (clears token, cache, history).
+- **OTP (one-time passwords)** — new `otp` data type; `otp <id>` prints the
+  current TOTP code and `verify-otp <id> <code>` checks a code. The TOTP secret
+  is stored encrypted; codes are generated on the client (`pyotp`).
+- **Export / import** — `export <file>` / `import <file>` save and load the local
+  cache as JSON (local only, no sync).
+- **Binary builds** — GitHub Actions (`build.yml`) builds standalone binaries
+  (Windows / Linux) with PyInstaller; `version` shows the version and build date.
+- **Extra tests** — OTP tests (`tests/test_otp.py`, `tests/test_otp_api.py`) and
+  a binary-protocol proof of concept (`tests/test_binary_protocol_poc.py`).
+
+## How Week 5 extends the MVP (vs Week 4)
+
+- Week 4 made the vault multi-client (sync + conflict resolution). Week 5 rounds
+  out the **user experience and data types**: a polished coloured CLI (and a TUI),
+  an interactive `update`, local `history`, `logout`, and `export` / `import`.
+- New **OTP** type turns GophKeeper into a working authenticator — TOTP codes are
+  generated locally, the server never sees the secret.
+- Distribution: the CLI is now built as standalone binaries.
+
+## Report material (Week 5)
+
+New features this week: full `rich` CLI UX + `tui`, `update` / `history` /
+`logout`, OTP (`otp` / `verify-otp`), `export` / `import`, and binary builds.
+
+Screenshots to capture for the report:
+
+- [X] CLI with the new coloured UI / `tui` menu.
+<img width="1047" height="802" alt="cli_ui" src="https://github.com/user-attachments/assets/06281431-c46d-42fa-a84a-a4cb8491ef28" />
+
+- [X] OTP in action: `add --type otp …` then `otp <id>` showing a TOTP code.
+<img width="1081" height="135" alt="otp_demo" src="https://github.com/user-attachments/assets/5bfed88e-174e-4039-8ee9-14d989e1a846" />
+
+- [X] `export` / `import` of the local cache.
+<img width="948" height="303" alt="export_import_demo" src="https://github.com/user-attachments/assets/f679a928-df26-4c06-93f9-72559e2b8cc3" />
+
+
+---

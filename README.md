@@ -79,9 +79,15 @@ python cli.py <command>
 | `add`      | Add a new item (encrypts content client-side)| ✅ works           |
 | `list`     | List your items (from local cache; `--refresh` to pull from server) | ✅ works           |
 | `get`      | Get and decrypt an item by id                | ✅ works           |
+| `update`   | Update an existing item (interactive)        | ✅ works           |
 | `delete`   | Delete an item by id (soft delete)           | ✅ works           |
-| `history`  | View change history (versions)               | 🚧 in progress     |
-| `version`  | Show version and build date                  | 🚧 in progress     |
+| `history`  | View the local change history of an item     | ✅ works           |
+| `otp`      | Show the current TOTP code for an OTP item   | ✅ works           |
+| `verify-otp` | Verify a TOTP code against an OTP item     | ✅ works           |
+| `export`   | Export the local cache to a JSON file        | ✅ works           |
+| `import`   | Import items from a JSON file                | ✅ works           |
+| `tui`      | Launch the interactive terminal UI (menu)    | ✅ works           |
+| `version`  | Show version and build date                  | ✅ works           |
 | `help`     | Show help                                    | ✅ works           |
 
 ### The `health` command (in detail)
@@ -211,6 +217,44 @@ Every item has an integer `version`. Multi-client changes are reconciled with a
 The CRUD and synchronization sequence diagrams are in
 [ARCHITECTURE.md](ARCHITECTURE.md#3-interaction-diagrams).
 
+### More CLI commands
+
+The CLI uses [rich](https://github.com/Textualize/rich) for coloured output and
+tables, and adds:
+
+- **`update <id>`** — edit an existing item interactively (re-encrypts and bumps
+  the version).
+- **`history <id>`** — show the local change history of an item.
+- **`logout`** — clear the stored token, cache, and history.
+- **`export <file>` / `import <file>`** — save the local cache to a JSON file and
+  load it back (local only, no sync).
+- **OTP (one-time passwords):** add an item with `--type otp`, then `otp <id>`
+  prints the current TOTP code and `verify-otp <id> <code>` checks a code.
+- **`tui`** — launch an interactive, menu-driven terminal UI.
+
+```bash
+python cli.py update 1
+python cli.py history 1
+python cli.py export backup.json
+python cli.py import backup.json
+python cli.py add --type otp --content "OTP_SECRET" --meta site=github
+python cli.py otp 1
+python cli.py verify-otp 1 123456
+python cli.py tui
+python cli.py logout
+```
+
+### Metadata
+
+Any item can carry free-form **metadata** — arbitrary `key=value` pairs passed
+with `--meta`. Metadata is stored as JSON on the server and is **not encrypted**
+(it is meant for labels/search — website, account, bank — not for secrets), and
+it is returned in both `list` and `get` responses.
+
+```bash
+python cli.py add --type password --content "s3cret" --meta site=github --meta user=alice
+```
+
 ---
 
 ## Environment variables
@@ -267,6 +311,10 @@ More detail in [ARCHITECTURE.md](ARCHITECTURE.md).
 - ✅ Real cryptography (Argon2id hashing, ChaCha20-Poly1305 encryption)
 - ✅ Local cache for the CLI (`list` from cache, `--refresh`, offline fallback)
 - ✅ Version conflicts (Last-Write-Wins, `409`): CLI background check + auto-retry
-- 🚧 CLI `update` / `history` / `version` commands
+- ✅ CLI `update` / `history` / `logout` / `version` commands
+- ✅ Full CLI UX with `rich` (colours, tables, interactive prompts) + `tui` menu
+- ✅ Data types incl. `otp` (TOTP): `otp` / `verify-otp`
+- ✅ `export` / `import` of the local cache (JSON)
+- ✅ Binary builds (Windows / Linux) via PyInstaller (GitHub Actions)
 
 ---
