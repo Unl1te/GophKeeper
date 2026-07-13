@@ -1,0 +1,60 @@
+name: Build Binaries
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build binary for ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: linux-x86_64
+            pyinstaller_args: --onefile --name gophkeeper-linux cli.py
+            artifact_name: gophkeeper-linux
+            artifact_path: dist/gophkeeper-linux
+          - os: windows-latest
+            arch: windows-amd64
+            pyinstaller_args: --onefile --name gophkeeper-windows cli.py
+            artifact_name: gophkeeper-windows
+            artifact_path: dist/gophkeeper-windows.exe
+          - os: macos-13
+            arch: macos-intel
+            pyinstaller_args: --onefile --name gophkeeper-macos-intel cli.py
+            artifact_name: gophkeeper-macos-intel
+            artifact_path: dist/gophkeeper-macos-intel
+          - os: macos-14
+            arch: macos-arm64
+            pyinstaller_args: --onefile --name gophkeeper-macos-arm64 cli.py
+            artifact_name: gophkeeper-macos-arm64
+            artifact_path: dist/gophkeeper-macos-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build binary
+        run: pyinstaller ${{ matrix.pyinstaller_args }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
