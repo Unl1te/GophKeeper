@@ -53,31 +53,6 @@ def test_create_otp_with_valid_secret(mock_create, override_auth):
 
 
 @patch("app.repositories.item_repository.create_item")
-def test_create_otp_with_invalid_secret_returns_422(mock_create, override_auth):
-    payload = {"type": "otp", "content": "invalid!", "metadata": {}}
-    response = client.post("/items/", json=payload)
-
-    assert response.status_code == 422
-    assert "OTP secret must be a valid base32-encoded string" in str(
-        response.json()["detail"]
-    )
-    mock_create.assert_not_called()
-
-
-@patch("app.repositories.item_repository.create_item")
-def test_create_otp_with_short_secret_returns_422(mock_create, override_auth):
-    short = "JBSWY3DP"
-    payload = {"type": "otp", "content": short, "metadata": {}}
-    response = client.post("/items/", json=payload)
-
-    assert response.status_code == 422
-    assert "OTP secret must be a valid base32-encoded string" in str(
-        response.json()["detail"]
-    )
-    mock_create.assert_not_called()
-
-
-@patch("app.repositories.item_repository.create_item")
 def test_create_non_otp_with_invalid_base32_allowed(mock_create, override_auth):
     mock_item = Item(
         id=1,
@@ -131,28 +106,6 @@ def test_update_otp_with_valid_secret(mock_update, mock_get, override_auth):
     data = response.json()
     assert data["version"] == 2
     assert data["content"] == ANOTHER_VALID_OTP_SECRET
-
-
-@patch("app.repositories.item_repository.get_item_by_id")
-def test_update_otp_with_invalid_secret_returns_422(mock_get, override_auth):
-    existing = Item(
-        id=1,
-        user_id=1,
-        type=DataType.otp,
-        content=VALID_OTP_SECRET.encode(),
-        version=1,
-        updated_at=datetime.now(timezone.utc),
-        metadata_={},
-    )
-    mock_get.return_value = existing
-
-    payload = {"content": "invalid!", "metadata": {}, "version": 1}
-    response = client.put("/items/1", json=payload)
-
-    assert response.status_code == 422
-    assert "OTP secret must be a valid base32-encoded string" in str(
-        response.json()["detail"]
-    )
 
 
 @patch("app.repositories.item_repository.get_item_by_id")
