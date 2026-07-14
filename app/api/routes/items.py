@@ -28,12 +28,6 @@ async def create_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new encrypted item for the authenticated user."""
-    if item_data.type == DataType.otp and not is_valid_otp_secret(item_data.content):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="OTP secret must be a valid base32-encoded string (minimum 16 bytes after decoding)",
-        )
 
     item = await item_repository.create_item(
         db=db,
@@ -136,15 +130,6 @@ async def update_item(
     if existing_item is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
-        )
-
-    # Validate OTP secret if type is OTP
-    if existing_item.type == DataType.otp and not is_valid_otp_secret(
-        update_data.content
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="OTP secret must be a valid base32-encoded string (minimum 16 bytes after decoding)",
         )
 
     try:
