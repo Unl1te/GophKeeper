@@ -28,7 +28,6 @@ async def create_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-
     item = await item_repository.create_item(
         db=db,
         user_id=current_user.id,
