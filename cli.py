@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+from dotenv import find_dotenv, load_dotenv
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -19,6 +20,14 @@ from crypto_interface import (
     get_totp_code,
     verify_totp,
 )
+
+# Load a .env (from the current directory, then next to the packaged binary) so
+# configuration works without exporting env vars by hand. Real env vars still win.
+load_dotenv(find_dotenv(usecwd=True))
+if getattr(sys, "frozen", False):
+    _exe_env = os.path.join(os.path.dirname(sys.executable), ".env")
+    if os.path.exists(_exe_env):
+        load_dotenv(_exe_env)
 
 SERVER_URL = os.environ.get("GOPHKEEPER_SERVER", "http://localhost")
 # Config dir holds the token and the local cache. Override with GOPHKEEPER_HOME
@@ -413,6 +422,13 @@ def add_item():
         print_error("Could not connect to server")
 
 
+def _format_metadata(item):
+    meta = item.get("metadata") or {}
+    if not meta:
+        return "-"
+    return ", ".join(f"{k}={v}" for k, v in meta.items())
+
+
 def _print_items(items):
     if not items:
         console.print("[yellow]No items found[/yellow]")
@@ -422,9 +438,16 @@ def _print_items(items):
     table.add_column("Type", style="magenta")
     table.add_column("Version", style="green", justify="right")
     table.add_column("Updated At", style="white")
+    table.add_column("Metadata", style="yellow")
     for item in items:
         updated = (item.get("updated_at") or "")[:19]
-        table.add_row(str(item["id"]), item["type"], str(item["version"]), updated)
+        table.add_row(
+            str(item["id"]),
+            item["type"],
+            str(item["version"]),
+            updated,
+            _format_metadata(item),
+        )
     console.print(table)
 
 
@@ -843,9 +866,16 @@ def tui():
     tui_main()
 
 
+def _prog():
+    """How the program was invoked (script name or packaged binary) — for help text."""
+    name = os.path.basename(sys.argv[0]) or "gophkeeper"
+    return name if getattr(sys, "frozen", False) else f"python {name}"
+
+
 def help():
+    prog = _prog()
     console.print(
-        """
+        f"""
 [bold]GophKeeper CLI - available commands:[/bold]
 
   [cyan]health[/cyan]    check if the server is running
@@ -866,18 +896,18 @@ def help():
   [cyan]otp[/cyan]       generate and display current TOTP code for an OTP item
   [cyan]verify-otp[/cyan] verify a TOTP code against an OTP item
   [cyan]tui[/cyan]       launch the interactive terminal UI (menu-driven)
-  [cyan]help[/cyan]      show this help message
+  [cyan]help[/cyan]      show this help message (also shown with no args, -h, --help)
 
-[bold]Usage:[/bold] python cli.py <command> [args...]
+[bold]Usage:[/bold] {prog} <command> [args...]
 [bold]Examples:[/bold]
-  python cli.py add --type text --content "my secret" --meta note=test
-  python cli.py add --type binary --file ./secret.pdf
-  python cli.py get 1
-  python cli.py update 1
-  python cli.py export backup.json
-  python cli.py import backup.json
-  python cli.py otp 1
-  python cli.py verify-otp 1 123456
+  {prog} add --type text --content "my secret" --meta note=test
+  {prog} add --type binary --file ./secret.pdf
+  {prog} get 1
+  {prog} update 1
+  {prog} export backup.json
+  {prog} import backup.json
+  {prog} otp 1
+  {prog} verify-otp 1 123456
 """
     )
 
@@ -904,17 +934,15 @@ COMMANDS = {
 
 
 def main():
-    if len(sys.argv) < 2:
-        console.print(
-            "[red]No command provided. Run 'python cli.py help' to see available commands[/red]"
-        )
-        sys.exit(1)
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        help()
+        return
 
     command = sys.argv[1].lower()
 
     if command not in COMMANDS:
         console.print(
-            f"[red]Unknown command: '{command}'. Run 'python cli.py help' to see available commands[/red]"
+            f"[red]Unknown command: '{command}'. Run '{_prog()} help' to see available commands[/red]"
         )
         sys.exit(1)
 
