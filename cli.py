@@ -372,7 +372,9 @@ def add_item():
         print_error("No content provided")
         return
 
-    console.print("[yellow]Tip: each item has its own master password. You will need it every time you access this item.[/yellow]")
+    console.print(
+        "[yellow]Tip: each item has its own master password. You will need it every time you access this item.[/yellow]"
+    )
     try:
         master_password = ask_master_password("Set master password for this item")
     except KeyboardInterrupt:
@@ -470,7 +472,9 @@ def get_item():
             item = response.json()
             cache.upsert(item)
             try:
-                master_password = ask_master_password("Enter master password for this item")
+                master_password = ask_master_password(
+                    "Enter master password for this item"
+                )
             except KeyboardInterrupt:
                 console.print("\n[yellow]Operation cancelled.[/yellow]")
                 return
