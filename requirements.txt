@@ -24,3 +24,4 @@ msgpack>=1.1.0
 pyotp>=2.9.0
 msgpack>=1.1.0
 rich>=13.7.0
+greenlet>=3.0.0
