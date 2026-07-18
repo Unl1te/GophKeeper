@@ -69,4 +69,4 @@ def test_cli_login_failure(mock_input, mock_getpass, requests_mock, capsys):
     cli.login()
 
     captured = capsys.readouterr()
-    assert "invalid login or password" in captured.out
+    assert "Invalid username or password" in captured.out

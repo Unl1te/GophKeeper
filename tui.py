@@ -292,6 +292,31 @@ def flow_delete():
         ok(f"deleted item {item_id}")
 
 
+def flow_logout():
+    cli.logout()
+
+
+def flow_help():
+    table = Table(title="Available Commands", show_header=True)
+    table.add_column("Option", justify="center", style="bold")
+    table.add_column("Command")
+    table.add_column("Description")
+    rows = [
+        ("1", "Login", "Authenticate with your username and password"),
+        ("2", "List items", "Show all your stored secrets"),
+        ("3", "View item", "Decrypt and display a single item by ID"),
+        ("4", "Add item", "Create a new encrypted secret"),
+        ("5", "Update item", "Edit the content or metadata of an existing item"),
+        ("6", "Delete item", "Permanently remove an item"),
+        ("7", "Logout", "Clear your session token and local cache"),
+        ("h", "Help", "Show this help screen"),
+        ("0", "Exit", "Quit the TUI"),
+    ]
+    for opt, cmd, desc in rows:
+        table.add_row(opt, cmd, desc)
+    console.print(table)
+
+
 MENU = [
     ("1", "Login", flow_login),
     ("2", "List items", flow_list),
@@ -299,6 +324,8 @@ MENU = [
     ("4", "Add item", flow_add),
     ("5", "Update item", flow_update),
     ("6", "Delete item", flow_delete),
+    ("7", "Logout", flow_logout),
+    ("h", "Help", flow_help),
     ("0", "Exit", None),
 ]
 
@@ -316,7 +343,7 @@ def main():
             console.print()
             info("bye")
             return
-        if choice == "0":
+        if choice in ("0", "q", "Q"):
             info("bye")
             return
         try:
