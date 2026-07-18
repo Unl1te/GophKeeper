@@ -180,7 +180,9 @@ def test_add_history_entry_appends_to_existing_list():
 
 def test_fetch_versions_returns_json_on_200(monkeypatch):
     monkeypatch.setattr(
-        cli.requests, "get", lambda *a, **k: FakeResponse(200, [{"id": 1, "version": 1}])
+        cli.requests,
+        "get",
+        lambda *a, **k: FakeResponse(200, [{"id": 1, "version": 1}]),
     )
     assert cli._fetch_versions() == [{"id": 1, "version": 1}]
 
@@ -279,7 +281,9 @@ def test_check_and_update_cache_triggers_refresh_on_version_mismatch(monkeypatch
 
 def test_check_and_update_cache_triggers_refresh_on_length_mismatch(monkeypatch):
     monkeypatch.setattr(
-        cli, "_fetch_versions", lambda: [{"id": 1, "version": 1}, {"id": 2, "version": 1}]
+        cli,
+        "_fetch_versions",
+        lambda: [{"id": 1, "version": 1}, {"id": 2, "version": 1}],
     )
     cli.cache.list_items.return_value = [{"id": 1, "version": 1}]
     monkeypatch.setattr(cli, "_refresh_cache_from_server", lambda: True)
@@ -293,7 +297,9 @@ def test_check_and_update_cache_triggers_refresh_on_length_mismatch(monkeypatch)
 
 
 def test_health_ok(monkeypatch, capsys):
-    monkeypatch.setattr(cli.requests, "get", lambda *a, **k: FakeResponse(200, {"status": "ok"}))
+    monkeypatch.setattr(
+        cli.requests, "get", lambda *a, **k: FakeResponse(200, {"status": "ok"})
+    )
     cli.health()
     assert "OK" in capsys.readouterr().out
 
@@ -348,7 +354,9 @@ def test_register_username_taken(logged_out, monkeypatch, capsys):
 def test_register_password_too_short(logged_out, monkeypatch, capsys):
     monkeypatch.setattr(cli.Prompt, "ask", lambda *a, **k: "alice")
     monkeypatch.setattr(cli.getpass, "getpass", lambda *a, **k: "x")
-    detail = [{"loc": ["body", "password"], "type": "string_too_short", "msg": "too short"}]
+    detail = [
+        {"loc": ["body", "password"], "type": "string_too_short", "msg": "too short"}
+    ]
     monkeypatch.setattr(
         cli.requests, "post", lambda *a, **k: FakeResponse(422, {"detail": detail})
     )
@@ -381,7 +389,9 @@ def test_register_other_error_status(logged_out, monkeypatch, capsys):
     monkeypatch.setattr(cli.Prompt, "ask", lambda *a, **k: "alice")
     monkeypatch.setattr(cli.getpass, "getpass", lambda *a, **k: "pw123456")
     monkeypatch.setattr(
-        cli.requests, "post", lambda *a, **k: FakeResponse(500, {"detail": "server error"})
+        cli.requests,
+        "post",
+        lambda *a, **k: FakeResponse(500, {"detail": "server error"}),
     )
     cli.register()
     assert "server error" in capsys.readouterr().out
@@ -627,7 +637,9 @@ def test_add_item_interactive_text_prompt_keyboard_interrupt(monkeypatch, capsys
 
 
 def test_add_item_master_password_keyboard_interrupt(monkeypatch, capsys):
-    monkeypatch.setattr(sys, "argv", ["cli.py", "add", "--type", "text", "--content", "x"])
+    monkeypatch.setattr(
+        sys, "argv", ["cli.py", "add", "--type", "text", "--content", "x"]
+    )
 
     def raise_interrupt(*a, **k):
         raise KeyboardInterrupt
@@ -989,7 +1001,9 @@ def test_update_item_connection_error_on_get(monkeypatch, capsys):
 def test_update_item_keyboard_interrupt_on_password(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["cli.py", "update", "1"])
     monkeypatch.setattr(
-        cli.requests, "get", lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"})
+        cli.requests,
+        "get",
+        lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"}),
     )
 
     def raise_interrupt(*a, **k):
@@ -1003,7 +1017,9 @@ def test_update_item_keyboard_interrupt_on_password(monkeypatch, capsys):
 def test_update_item_decrypt_failure(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["cli.py", "update", "1"])
     monkeypatch.setattr(
-        cli.requests, "get", lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"})
+        cli.requests,
+        "get",
+        lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"}),
     )
     monkeypatch.setattr(cli, "ask_master_password", lambda *a, **k: "pw")
     monkeypatch.setattr(cli, "derive_key", lambda pw, salt: b"key")
@@ -1208,7 +1224,9 @@ def test_otp_command_missing_arg(capsys):
 def test_otp_command_success(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["cli.py", "otp", "1"])
     monkeypatch.setattr(
-        cli.requests, "get", lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"})
+        cli.requests,
+        "get",
+        lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"}),
     )
     monkeypatch.setattr(cli, "ask_master_password", lambda *a, **k: "pw")
     monkeypatch.setattr(cli, "derive_key", lambda pw, salt: b"key")
@@ -1256,7 +1274,9 @@ def test_otp_command_connection_error(monkeypatch, capsys):
 def test_otp_command_keyboard_interrupt(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["cli.py", "otp", "1"])
     monkeypatch.setattr(
-        cli.requests, "get", lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"})
+        cli.requests,
+        "get",
+        lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"}),
     )
 
     def raise_interrupt(*a, **k):
@@ -1270,7 +1290,9 @@ def test_otp_command_keyboard_interrupt(monkeypatch, capsys):
 def test_otp_command_decrypt_failure(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["cli.py", "otp", "1"])
     monkeypatch.setattr(
-        cli.requests, "get", lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"})
+        cli.requests,
+        "get",
+        lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"}),
     )
     monkeypatch.setattr(cli, "ask_master_password", lambda *a, **k: "pw")
     monkeypatch.setattr(cli, "derive_key", lambda pw, salt: b"key")
@@ -1286,7 +1308,9 @@ def test_otp_command_decrypt_failure(monkeypatch, capsys):
 def test_otp_command_totp_generation_failure(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["cli.py", "otp", "1"])
     monkeypatch.setattr(
-        cli.requests, "get", lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"})
+        cli.requests,
+        "get",
+        lambda *a, **k: FakeResponse(200, {"id": 1, "content": "aa"}),
     )
     monkeypatch.setattr(cli, "ask_master_password", lambda *a, **k: "pw")
     monkeypatch.setattr(cli, "derive_key", lambda pw, salt: b"key")
@@ -1313,7 +1337,9 @@ def test_verify_otp_command_missing_args(capsys):
 def _prep_verify(monkeypatch, item=None):
     monkeypatch.setattr(sys, "argv", ["cli.py", "verify-otp", "1", "123456"])
     monkeypatch.setattr(
-        cli.requests, "get", lambda *a, **k: FakeResponse(200, item or {"id": 1, "content": "aa"})
+        cli.requests,
+        "get",
+        lambda *a, **k: FakeResponse(200, item or {"id": 1, "content": "aa"}),
     )
     monkeypatch.setattr(cli, "ask_master_password", lambda *a, **k: "pw")
     monkeypatch.setattr(cli, "derive_key", lambda pw, salt: b"key")
@@ -1503,7 +1529,9 @@ def test_main_unknown_command_exits_1(monkeypatch, capsys):
 
 
 def test_main_dispatches_to_matching_command(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["cli.py", "VERSION"])  # command matching is lowercased
+    monkeypatch.setattr(
+        sys, "argv", ["cli.py", "VERSION"]
+    )  # command matching is lowercased
     called = MagicMock()
     monkeypatch.setitem(cli.COMMANDS, "version", called)
     cli.main()
