@@ -8,14 +8,18 @@ import cli
 
 def test_no_args_shows_help(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["cli.py"])
-    cli.main()
+    # Main exits with SystemExit(1) which we must catch
+    with pytest.raises(SystemExit):
+        cli.main()
     assert "available commands" in capsys.readouterr().out
 
 
 def test_help_flags_show_help(monkeypatch, capsys):
     for flag in ("-h", "--help"):
         monkeypatch.setattr(sys, "argv", ["cli.py", flag])
-        cli.main()
+        # Main exits with SystemExit(1) which we must catch
+        with pytest.raises(SystemExit):
+            cli.main()
         assert "available commands" in capsys.readouterr().out
 
 

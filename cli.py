@@ -425,9 +425,16 @@ def _print_items(items):
     table.add_column("Type", style="magenta")
     table.add_column("Version", style="green", justify="right")
     table.add_column("Updated At", style="white")
+    table.add_column("Metadata", style="yellow")  # ДОБАВИЛИ КОЛОНКУ
     for item in items:
         updated = (item.get("updated_at") or "")[:19]
-        table.add_row(str(item["id"]), item["type"], str(item["version"]), updated)
+        meta_dict = item.get("metadata") or {}
+        meta = ", ".join(
+            f"{k}={v}" for k, v in meta_dict.items()
+        )  # КРАСИВЫЙ ФОРМАТ KEY=VALUE
+        table.add_row(
+            str(item["id"]), item["type"], str(item["version"]), updated, meta
+        )
     console.print(table)
 
 
@@ -849,8 +856,10 @@ def tui():
 
 
 def help():
+    # Динамически определяем имя бинарника или скрипта
+    prog = "gophkeeper" if getattr(sys, "frozen", False) else "python cli.py"
     console.print(
-        """
+        f"""
 [bold]GophKeeper CLI - available commands:[/bold]
 
   [cyan]health[/cyan]    check if the server is running
@@ -873,16 +882,16 @@ def help():
   [cyan]tui[/cyan]       launch the interactive terminal UI (menu-driven)
   [cyan]help[/cyan]      show this help message
 
-[bold]Usage:[/bold] python cli.py <command> [args...]
+[bold]Usage:[/bold] {prog} <command> [args...]
 [bold]Examples:[/bold]
-  python cli.py add --type text --content "my secret" --meta note=test
-  python cli.py add --type binary --file ./secret.pdf
-  python cli.py get 1
-  python cli.py update 1
-  python cli.py export backup.json
-  python cli.py import backup.json
-  python cli.py otp 1
-  python cli.py verify-otp 1 123456
+  {prog} add --type text --content "my secret" --meta note=test
+  {prog} add --type binary --file ./secret.pdf
+  {prog} get 1
+  {prog} update 1
+  {prog} export backup.json
+  {prog} import backup.json
+  {prog} otp 1
+  {prog} verify-otp 1 123456
 """
     )
 
