@@ -7,6 +7,26 @@ encrypted on the client side.
 
 ---
 
+## Project links
+
+| Resource | Link |
+|----------|------|
+| Repository | https://github.com/Unl1te/GophKeeper |
+| Deployed backend VM | http://10.93.27.17 |
+| Swagger UI | http://10.93.27.17/docs |
+| OpenAPI JSON | http://10.93.27.17/openapi.json |
+| Web testing instrument | http://10.93.27.17/web |
+| Architecture document | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Demo notes | [DEMO_NOTE.md](DEMO_NOTE.md) |
+| Capstone board | https://github.com/users/Unl1te/projects/1/views/1 |
+| Final report draft | https://www.overleaf.com/project/6a5cd9dc6a4b588304fcc32e |
+
+GophKeeper is CLI-first. A Figma prototype is not required for this project
+because there is no graphical product UI; manual web testing is done through
+Swagger UI and the project web testing endpoint.
+
+---
+
 ## Run with Docker
 Backend for secure secret storage — **FastAPI + PostgreSQL**.
 
@@ -67,6 +87,16 @@ The client runs separately and talks to the server at `http://localhost:8000`.
 
 ```bash
 python cli.py <command>
+```
+
+For the deployed VM, point the client to the team server:
+
+```bash
+# Linux / macOS
+export GOPHKEEPER_SERVER=http://10.93.27.17
+
+# Windows PowerShell
+$env:GOPHKEEPER_SERVER = "http://10.93.27.17"
 ```
 
 ### Available commands
@@ -257,10 +287,52 @@ python cli.py add --type password --content "s3cret" --meta site=github --meta u
 
 ---
 
+## Binary usage
+
+GitHub Actions builds standalone CLI binaries for Windows and Linux. Download
+the artifact for your OS from the repository Actions / Releases page, then point
+the binary to the running backend.
+
+Linux:
+
+```bash
+chmod +x ./gophkeeper-linux
+export GOPHKEEPER_SERVER=http://10.93.27.17
+./gophkeeper-linux help
+./gophkeeper-linux login
+./gophkeeper-linux list --refresh
+```
+
+macOS:
+
+```bash
+chmod +x ./gophkeeper-macos
+export GOPHKEEPER_SERVER=http://10.93.27.17
+./gophkeeper-macos help
+./gophkeeper-macos login
+./gophkeeper-macos list --refresh
+```
+
+Windows PowerShell:
+
+```powershell
+$env:GOPHKEEPER_SERVER = "http://10.93.27.17"
+.\gophkeeper-windows.exe help
+.\gophkeeper-windows.exe login
+.\gophkeeper-windows.exe list --refresh
+```
+
+To use another backend, replace `http://10.93.27.17` with the target server URL.
+For isolated local clients on the same machine, set `GOPHKEEPER_HOME` to a
+different folder.
+
+---
+
 ## Environment variables
 
-Settings are read from environment variables (see `.env.example`). For a local
-Docker run everything works on the defaults — `.env` is optional.
+Settings are read from environment variables (see `.env.example`). Use `.env`
+to configure local Docker runs, VM deployment, database credentials and the
+published API port.
 
 | Variable          | Default      | Purpose                                                         |
 |-------------------|--------------|-----------------------------------------------------------------|
