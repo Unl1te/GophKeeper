@@ -42,9 +42,9 @@ docker-compose down       # stop containers, keep the database
 docker-compose down -v    # also wipe the database volume
 ```
 
-### Configuration (optional)
+### Configuration
 
-Defaults work out of the box. To override them (custom credentials, or publishing the
+To override them (custom credentials, or publishing the
 API on port 80 on the course VM), create a `.env` file from the template:
 
 ```bash
