@@ -66,7 +66,7 @@ erDiagram
     ITEMS {
         int id PK
         int user_id FK
-        enum type "password / card / text / binary"
+        enum type "password / card / text / binary / otp"
         bytes content "encrypted on the client"
         json metadata "free-form, not encrypted"
         int version
