@@ -8,7 +8,9 @@
   "paths": {
     "/health": {
       "get": {
-        "tags": ["Health"],
+        "tags": [
+          "Health"
+        ],
         "summary": "Health Check",
         "operationId": "health_check_health_get",
         "responses": {
@@ -16,7 +18,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+
+                }
               }
             }
           }
@@ -25,7 +29,9 @@
     },
     "/db-check": {
       "get": {
-        "tags": ["Health"],
+        "tags": [
+          "Health"
+        ],
         "summary": "Db Check",
         "operationId": "db_check_db_check_get",
         "responses": {
@@ -33,7 +39,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+
+                }
               }
             }
           }
@@ -42,7 +50,9 @@
     },
     "/register": {
       "post": {
-        "tags": ["Registration"],
+        "tags": [
+          "Registration"
+        ],
         "summary": "Register",
         "description": "Register a new user.\n\n- **login**: unique username (min 3 characters)\n- **password**: password (min 6 characters)\n\nReturns 201 Created on success, 409 Conflict if login already exists.",
         "operationId": "register_register_post",
@@ -82,7 +92,9 @@
     },
     "/login": {
       "post": {
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Login",
         "description": "Authenticate user and return JWT access token.\n\n- **login**: username\n- **password**: password\n\nReturns 200 OK with access token, 401 Unauthorized on invalid credentials.",
         "operationId": "login_login_post",
@@ -120,6 +132,302 @@
         }
       }
     },
+    "/items/": {
+      "get": {
+        "tags": [
+          "Items"
+        ],
+        "summary": "List Items",
+        "description": "Get all non-deleted items for the authenticated user (no content).",
+        "operationId": "list_items_items__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Items Items  Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Items"
+        ],
+        "summary": "Create Item",
+        "operationId": "create_item_items__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/items/versions": {
+      "get": {
+        "tags": [
+          "Items"
+        ],
+        "summary": "Get Items Versions",
+        "description": "Lightweight endpoint that returns only id, version, updated_at for all user items.\nUsed by the CLI to check for changes without downloading full data.",
+        "operationId": "get_items_versions_items_versions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get Items Versions Items Versions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/items/{item_id}": {
+      "get": {
+        "tags": [
+          "Items"
+        ],
+        "summary": "Get Item",
+        "description": "Get a single item by ID (includes encrypted content).",
+        "operationId": "get_item_items__item_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Items"
+        ],
+        "summary": "Update Item",
+        "description": "Update an existing item.\nReturns 409 Conflict if the client version is stale.",
+        "operationId": "update_item_items__item_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Items"
+        ],
+        "summary": "Delete Item",
+        "description": "Soft-delete an item (sets deleted=True, data is not removed from DB).",
+        "operationId": "delete_item_items__item_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/sync": {
+      "post": {
+        "tags": [
+          "Items"
+        ],
+        "summary": "Sync Items",
+        "description": "Incremental sync endpoint.\nClient sends a list of {id, version} it currently holds.\nServer returns only items where the server version is greater than the client version.",
+        "operationId": "sync_items_items_sync_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -129,7 +437,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+
+                }
               }
             }
           }
@@ -139,6 +449,18 @@
   },
   "components": {
     "schemas": {
+      "DataType": {
+        "type": "string",
+        "enum": [
+          "password",
+          "card",
+          "text",
+          "binary",
+          "otp"
+        ],
+        "title": "DataType",
+        "description": "Supported secret data types."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -152,6 +474,149 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "ItemCreateRequest": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/DataType"
+          },
+          "content": {
+            "type": "string",
+            "format": "binary",
+            "title": "Content"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "content"
+        ],
+        "title": "ItemCreateRequest"
+      },
+      "ItemDetailResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DataType"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "content": {
+            "type": "string",
+            "format": "binary",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "version",
+          "updated_at",
+          "content"
+        ],
+        "title": "ItemDetailResponse"
+      },
+      "ItemResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DataType"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "version",
+          "updated_at"
+        ],
+        "title": "ItemResponse"
+      },
+      "ItemUpdateRequest": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "format": "binary",
+            "title": "Content"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "version"
+        ],
+        "title": "ItemUpdateRequest"
+      },
       "LoginRequest": {
         "properties": {
           "login": {
@@ -164,7 +629,10 @@
           }
         },
         "type": "object",
-        "required": ["login", "password"],
+        "required": [
+          "login",
+          "password"
+        ],
         "title": "LoginRequest"
       },
       "LoginResponse": {
@@ -180,7 +648,9 @@
           }
         },
         "type": "object",
-        "required": ["access_token"],
+        "required": [
+          "access_token"
+        ],
         "title": "LoginResponse"
       },
       "RegisterRequest": {
@@ -197,7 +667,10 @@
           }
         },
         "type": "object",
-        "required": ["login", "password"],
+        "required": [
+          "login",
+          "password"
+        ],
         "title": "RegisterRequest"
       },
       "RegisterResponse": {
@@ -208,16 +681,113 @@
           }
         },
         "type": "object",
-        "required": ["message"],
+        "required": [
+          "message"
+        ],
         "title": "RegisterResponse"
+      },
+      "SyncItemVersion": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version"
+        ],
+        "title": "SyncItemVersion"
+      },
+      "SyncRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SyncItemVersion"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SyncRequest"
+      },
+      "SyncResponse": {
+        "properties": {
+          "updates": {
+            "items": {
+              "$ref": "#/components/schemas/SyncUpdateItem"
+            },
+            "type": "array",
+            "title": "Updates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updates"
+        ],
+        "title": "SyncResponse"
+      },
+      "SyncUpdateItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "content": {
+            "type": "string",
+            "format": "binary",
+            "title": "Content"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "updated_at",
+          "content"
+        ],
+        "title": "SyncUpdateItem"
       },
       "ValidationError": {
         "properties": {
           "loc": {
             "items": {
               "anyOf": [
-                {"type": "string"},
-                {"type": "integer"}
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
               ]
             },
             "type": "array",
@@ -233,8 +803,18 @@
           }
         },
         "type": "object",
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   }
